@@ -1,1 +1,1 @@
-welcome seeker and enter
+index.html
