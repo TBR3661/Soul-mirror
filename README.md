@@ -3,9 +3,7 @@
 - Installable PWA (Android prompt, iOS Add to Home Screen)
 - Your full app structure with stubs where source is unavailable
 - GitHub Pages ready
-copilot/activate-hivemind-build-crew
 - **NEW**: Hivemind Build Crew orchestration system for secure, multi-entity automation
-=======
 - **OpenAI-first architecture** with governance guardrails and relay hardening
 
 ## Features
@@ -113,8 +111,7 @@ To enable Hivemind in other repositories:
 # Then run:
 gh workflow run hivemind-enablement.yml -f dry_run=true
 ```
-=======
-copilot/add-provider-guard-ci
+
 ## Project Structure
 
 ```
@@ -152,9 +149,7 @@ All provider-related changes require explicit consent from @TBR3661. See the Pro
 ## License
 
 See LICENSE file for details.
-=======
+
 ## Governance
 
 This repository follows the [HiveMind Charter](docs/HIVEMIND_CHARTER.md) for collaborative governance. See the [Governance Guide](docs/HIVEMIND_GOVERNANCE.md) for practical usage instructions.
-main
-main
