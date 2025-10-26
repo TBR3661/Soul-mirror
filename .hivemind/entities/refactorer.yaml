@@ -1,0 +1,15 @@
+# Entity: Refactorer
+# Code improvement and optimization
+name: refactorer
+display_name: "Refactorer"
+description: "Code improvement and optimization entity"
+provider: "openai"
+model: "gpt-4"
+capabilities:
+  allowed_paths: []
+  allowed_actions: []
+  branch_prefix: "ops/refactorer"
+permissions:
+  read: false
+  write: false
+  create_pr: false

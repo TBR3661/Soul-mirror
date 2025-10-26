@@ -1,0 +1,15 @@
+# Entity: Workflow
+# Workflow automation and orchestration
+name: workflow
+display_name: "Workflow"
+description: "Workflow automation and orchestration entity"
+provider: "openai"
+model: "gpt-4"
+capabilities:
+  allowed_paths: []
+  allowed_actions: []
+  branch_prefix: "ops/workflow"
+permissions:
+  read: false
+  write: false
+  create_pr: false

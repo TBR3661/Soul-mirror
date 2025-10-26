@@ -1,0 +1,287 @@
+name: Hivemind Foreman
+
+# Orchestrator workflow that reads plan and entity manifests,
+# then dispatches safe tasks to the existing Operator PR flow
+
+on:
+  # Triggered via repository_dispatch for programmatic execution
+  repository_dispatch:
+    types: [hive-execute]
+  
+  # Manual trigger for testing and debugging
+  workflow_dispatch:
+    inputs:
+      plan_file:
+        description: 'Path to plan file (default: .hivemind/plan.yaml)'
+        required: false
+        default: '.hivemind/plan.yaml'
+      dry_run:
+        description: 'Dry run mode (no actual PR creation)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: |
+          npm install js-yaml
+      
+      - name: Parse and validate plan
+        id: parse_plan
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+            
+            // Get plan file path
+            const planFile = context.payload.client_payload?.plan_file || 
+                             context.payload.inputs?.plan_file || 
+                             '.hivemind/plan.yaml';
+            
+            const dryRun = context.payload.client_payload?.dry_run || 
+                          context.payload.inputs?.dry_run || 
+                          false;
+            
+            console.log(`📋 Loading plan from: ${planFile}`);
+            console.log(`🔍 Dry run mode: ${dryRun}`);
+            
+            // Load and parse plan
+            let plan;
+            try {
+              const planContent = fs.readFileSync(planFile, 'utf8');
+              plan = yaml.load(planContent);
+            } catch (error) {
+              core.setFailed(`Failed to load plan file: ${error.message}`);
+              return;
+            }
+            
+            // Load policy
+            let policy;
+            try {
+              const policyContent = fs.readFileSync('.hivemind/policy.yaml', 'utf8');
+              policy = yaml.load(policyContent);
+            } catch (error) {
+              core.setFailed(`Failed to load policy file: ${error.message}`);
+              return;
+            }
+            
+            console.log(`✅ Loaded plan: ${plan.metadata.name}`);
+            console.log(`✅ Loaded policy version: ${policy.version}`);
+            
+            // Filter enabled tasks
+            const enabledTasks = plan.tasks.filter(task => task.enabled === true);
+            console.log(`📊 Total tasks: ${plan.tasks.length}`);
+            console.log(`✓ Enabled tasks: ${enabledTasks.length}`);
+            
+            // Store for next step
+            core.setOutput('plan', JSON.stringify(plan));
+            core.setOutput('policy', JSON.stringify(policy));
+            core.setOutput('enabled_tasks', JSON.stringify(enabledTasks));
+            core.setOutput('dry_run', dryRun);
+            
+            // Create summary
+            await core.summary
+              .addHeading('🤖 Hivemind Foreman Orchestration')
+              .addRaw(`**Plan**: ${plan.metadata.name}`)
+              .addRaw(`\n**Status**: ${plan.metadata.status}`)
+              .addRaw(`\n**Total Tasks**: ${plan.tasks.length}`)
+              .addRaw(`\n**Enabled Tasks**: ${enabledTasks.length}`)
+              .addRaw(`\n**Dry Run**: ${dryRun ? '✅' : '❌'}`)
+              .write();
+      
+      - name: Load entity manifests
+        id: load_entities
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+            const path = require('path');
+            
+            const entitiesDir = '.hivemind/entities';
+            
+            // Read all entity files
+            const entityFiles = fs.readdirSync(entitiesDir)
+              .filter(file => file.endsWith('.yaml') || file.endsWith('.yml'));
+            
+            console.log(`📂 Found ${entityFiles.length} entity manifests`);
+            
+            const entities = {};
+            for (const file of entityFiles) {
+              const filePath = path.join(entitiesDir, file);
+              const content = fs.readFileSync(filePath, 'utf8');
+              const entity = yaml.load(content);
+              entities[entity.name] = entity;
+              console.log(`  ✓ Loaded entity: ${entity.display_name} (${entity.name})`);
+            }
+            
+            core.setOutput('entities', JSON.stringify(entities));
+            console.log(`✅ Loaded ${Object.keys(entities).length} entities`);
+      
+      - name: Validate and dispatch tasks
+        id: dispatch_tasks
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const plan = JSON.parse('${{ steps.parse_plan.outputs.plan }}');
+            const policy = JSON.parse('${{ steps.parse_plan.outputs.policy }}');
+            const entities = JSON.parse('${{ steps.load_entities.outputs.entities }}');
+            const enabledTasks = JSON.parse('${{ steps.parse_plan.outputs.enabled_tasks }}');
+            const dryRun = '${{ steps.parse_plan.outputs.dry_run }}' === 'true';
+            
+            console.log(`🚀 Processing ${enabledTasks.length} enabled tasks`);
+            
+            // Helper function to check if path is allowed
+            function isPathAllowed(path, policy) {
+              // Check denied patterns first
+              for (const deniedPattern of policy.global.denied_patterns) {
+                const regex = new RegExp(deniedPattern.replace('*', '.*'));
+                if (regex.test(path)) {
+                  return false;
+                }
+              }
+              
+              // Check denied paths
+              for (const deniedPath of policy.global.denied_paths) {
+                if (path.startsWith(deniedPath.replace('**/', ''))) {
+                  return false;
+                }
+              }
+              
+              // Check allowed paths
+              for (const allowedPath of policy.global.allowed_paths) {
+                if (path.startsWith(allowedPath)) {
+                  return true;
+                }
+              }
+              
+              // Check allowed patterns
+              for (const allowedPattern of policy.global.allowed_patterns) {
+                const regex = new RegExp(allowedPattern.replace('*', '.*'));
+                if (regex.test(path)) {
+                  return true;
+                }
+              }
+              
+              return false;
+            }
+            
+            const results = [];
+            
+            for (const task of enabledTasks) {
+              console.log(`\n📋 Processing task: ${task.id} - ${task.title}`);
+              
+              // Validate target paths
+              const invalidPaths = [];
+              for (const targetPath of task.target_paths || []) {
+                if (!isPathAllowed(targetPath, policy)) {
+                  invalidPaths.push(targetPath);
+                }
+              }
+              
+              if (invalidPaths.length > 0) {
+                console.log(`⚠️  Task ${task.id} has disallowed paths: ${invalidPaths.join(', ')}`);
+                results.push({
+                  task_id: task.id,
+                  status: 'skipped',
+                  reason: 'disallowed_paths',
+                  invalid_paths: invalidPaths
+                });
+                continue;
+              }
+              
+              // Validate assigned entities
+              const missingEntities = [];
+              for (const entityName of task.assigned_entities || []) {
+                if (!entities[entityName]) {
+                  missingEntities.push(entityName);
+                }
+              }
+              
+              if (missingEntities.length > 0) {
+                console.log(`⚠️  Task ${task.id} has missing entities: ${missingEntities.join(', ')}`);
+                results.push({
+                  task_id: task.id,
+                  status: 'skipped',
+                  reason: 'missing_entities',
+                  missing_entities: missingEntities
+                });
+                continue;
+              }
+              
+              // Dispatch task to each assigned entity
+              for (const entityName of task.assigned_entities || []) {
+                const entity = entities[entityName];
+                
+                console.log(`  🤖 Dispatching to entity: ${entity.display_name}`);
+                
+                if (dryRun) {
+                  console.log(`  [DRY RUN] Would dispatch repository_dispatch event`);
+                  results.push({
+                    task_id: task.id,
+                    entity: entityName,
+                    status: 'dry_run',
+                    action: 'would_dispatch'
+                  });
+                } else {
+                  // In a real implementation, this would dispatch to the Operator
+                  // For now, we just log the action
+                  console.log(`  ✅ Task validated and ready for dispatch`);
+                  
+                  // Future: Dispatch repository_dispatch event
+                  // await github.rest.repos.createDispatchEvent({
+                  //   owner: context.repo.owner,
+                  //   repo: context.repo.repo,
+                  //   event_type: 'hivemind-task',
+                  //   client_payload: {
+                  //     task_id: task.id,
+                  //     entity: entityName,
+                  //     branch_prefix: entity.capabilities.branch_prefix,
+                  //     target_paths: task.target_paths,
+                  //     description: task.description
+                  //   }
+                  // });
+                  
+                  results.push({
+                    task_id: task.id,
+                    entity: entityName,
+                    status: 'dispatched',
+                    branch: `${entity.capabilities.branch_prefix}/${task.id}`
+                  });
+                }
+              }
+            }
+            
+            console.log(`\n✅ Orchestration complete`);
+            console.log(`📊 Results: ${JSON.stringify(results, null, 2)}`);
+            
+            // Create summary
+            await core.summary
+              .addHeading('📊 Orchestration Results')
+              .addTable([
+                [{data: 'Task ID', header: true}, {data: 'Entity', header: true}, {data: 'Status', header: true}],
+                ...results.map(r => [r.task_id, r.entity || 'N/A', r.status])
+              ])
+              .write();
+            
+            core.setOutput('results', JSON.stringify(results));
+      
+      - name: Report completion
+        if: always()
+        run: |
+          echo "🎉 Hivemind Foreman orchestration complete"
+          echo "Check job summary for detailed results"

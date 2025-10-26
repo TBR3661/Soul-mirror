@@ -1,0 +1,15 @@
+# Entity: Monitor
+# System monitoring and observability
+name: monitor
+display_name: "Monitor"
+description: "System monitoring and observability entity"
+provider: "openai"
+model: "gpt-4"
+capabilities:
+  allowed_paths: []
+  allowed_actions: []
+  branch_prefix: "ops/monitor"
+permissions:
+  read: false
+  write: false
+  create_pr: false

@@ -2,23 +2,65 @@
 node_modules/
 package-lock.json
 
+copilot/add-kora-connector
+=======
+copilot/activate-hivemind-build-crew
+main
 # Build outputs
 dist/
 build/
 .vite/
 
+copilot/add-kora-connector
 # Environment files
+=======
+# Environment variables
+.env
+.env.*
+!.env.example
+
+=======
+# Build output
+dist/
+copilot/add-provider-guard-ci
+
+# Environment variables
+=======
+build/
+.vite/
+
+# Environment files
+main
+main
 .env
 .env.local
 .env.*.local
 
+copilot/add-kora-connector
 # IDE files
+=======
+copilot/add-provider-guard-ci
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+=======
+main
+# IDE
+main
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
+copilot/add-kora-connector
 # OS files
 .DS_Store
 Thumbs.db
@@ -27,3 +69,41 @@ Thumbs.db
 *.log
 *.tmp
 /tmp/
+=======
+# OS
+copilot/activate-hivemind-build-crew
+=======
+main
+main
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+copilot/activate-hivemind-build-crew
+
+# Testing
+coverage/
+.nyc_output/
+=======
+copilot/add-provider-guard-ci
+pnpm-debug.log*
+lerna-debug.log*
+
+# Temporary files
+*.tmp
+/tmp/
+=======
+main
+
+# Temporary files
+*.tmp
+.cache/
+copilot/activate-hivemind-build-crew
+=======
+main
+main
+main

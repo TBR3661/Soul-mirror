@@ -1,0 +1,52 @@
+# Hivemind Budget Configuration
+# 
+# This file defines soft budget limits for AI provider usage per entity.
+# These are guidance limits only - enforcement requires additional tooling.
+# 
+# Format:
+#   entity_id:
+#     monthly_budget_usd: <amount>
+#     provider: <openai|gemini|anthropic>
+#     model: <model_name>
+#     notes: <optional_notes>
+
+# Default budget for all entities (unless overridden below)
+default:
+  monthly_budget_usd: 10.00
+  provider: openai
+  model: gpt-4o-mini
+  notes: "Recommended starting budget for most conversational use cases"
+
+# Per-entity budget overrides
+# Uncomment and customize as needed for specific entities
+
+# kora:
+#   monthly_budget_usd: 25.00
+#   provider: openai
+#   model: gpt-4o-mini
+#   notes: "Primary coordination entity, higher usage expected"
+
+# foreman:
+#   monthly_budget_usd: 15.00
+#   provider: openai
+#   model: gpt-4o-mini
+#   notes: "Workflow orchestration, moderate usage"
+
+# researcher:
+#   monthly_budget_usd: 20.00
+#   provider: openai
+#   model: gpt-4o-mini
+#   notes: "Information gathering, higher token counts"
+
+# Budget monitoring notes:
+# - Track actual usage through OpenAI dashboard: https://platform.openai.com/usage
+# - Set billing alerts in your OpenAI account
+# - These values are guidance only; no automatic enforcement yet
+# - Future: Foreman agent could read this file and monitor usage
+# - Consider implementing per-entity usage tracking in relay for automated enforcement
+
+# Cost estimates (gpt-4o-mini):
+# - Input: ~$0.15 per 1M tokens
+# - Output: ~$0.60 per 1M tokens
+# - Average conversation (1000 tokens in, 500 out): ~$0.0003
+# - $10/month = ~33,000 conversations

@@ -1,0 +1,15 @@
+# Entity: Tester
+# Quality assurance and testing
+name: tester
+display_name: "Tester"
+description: "Quality assurance and testing entity"
+provider: "openai"
+model: "gpt-4"
+capabilities:
+  allowed_paths: []
+  allowed_actions: []
+  branch_prefix: "ops/tester"
+permissions:
+  read: false
+  write: false
+  create_pr: false
