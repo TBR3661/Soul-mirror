@@ -1,31 +1,200 @@
 copilot/add-kora-connector
-# Kora Connector - Cloudflare Worker Relay
+# Soul Mirror Relay - Cloudflare Worker
 
-This directory contains the Cloudflare Worker implementation for the Kora ChatGPT connector.
+This directory contains the Cloudflare Worker implementation for the Soul Mirror relay system.
+
+## Features
+
+### 1. Kora Connector (ChatGPT Integration)
+Safe ChatGPT connector for repository operations:
+- Dispatch hivemind tasks
+- List and manage pull requests
+- Add comments and labels
+- Non-destructive, PR-gated actions only
+
+### 2. Subscription & Store Scaffolding (NEW)
+Payment link distribution and entitlement management:
+- Billing endpoints for subscription tiers (monthly, quarterly, yearly)
+- Store endpoints for per-SKU direct sales
+- KV-backed entitlement ledger for access control
+- Private library gating by subscription/purchase status
 
 ## Files
 
-- **cf-worker.js** - Cloudflare Worker implementation with API endpoints
+- **cf-worker.js** - Cloudflare Worker implementation with all endpoints
 - **cf-openapi.json** - OpenAPI 3.1 schema for ChatGPT Actions
+- **wrangler.toml** - Cloudflare Worker configuration with KV bindings
 
 ## Quick Start
 
-See the comprehensive setup guide at [docs/CHATGPT_CONNECTOR.md](../../docs/CHATGPT_CONNECTOR.md)
-
-## Deployment
+### Prerequisites
 
 1. Install Wrangler CLI: `npm install -g wrangler`
 2. Login to Cloudflare: `wrangler login`
-3. Set secrets:
-   ```bash
-   wrangler secret put GITHUB_TOKEN
-   wrangler secret put CHATGPT_BEARER_TOKEN
-   ```
-4. Deploy: `wrangler deploy`
+
+### Setup KV Namespace
+
+Create a KV namespace for entitlement storage:
+
+```bash
+# Production namespace
+wrangler kv:namespace create ENTITLEMENTS_KV
+
+# Preview namespace (for dev/testing)
+wrangler kv:namespace create ENTITLEMENTS_KV --preview
+```
+
+Update `wrangler.toml` with the namespace IDs returned by these commands.
+
+### Configure Secrets
+
+Set required secrets using Wrangler CLI:
+
+```bash
+# GitHub integration
+wrangler secret put GITHUB_TOKEN
+wrangler secret put CHATGPT_BEARER_TOKEN
+
+# Subscription billing links
+wrangler secret put CHASE_LINK_MONTHLY
+wrangler secret put CHASE_LINK_QUARTERLY
+wrangler secret put CHASE_LINK_YEARLY
+
+# Store product links (per SKU)
+wrangler secret put CHASE_LINK_SKU_EBOOK
+wrangler secret put CHASE_LINK_SKU_COURSE
+# Add more SKUs as needed...
+```
+
+### Deploy
+
+```bash
+# From operators/relay directory
+wrangler deploy
+```
 
 ## Endpoints
 
-All endpoints require `Authorization: Bearer <token>` header.
+### Billing & Store (Public, No Auth)
+
+#### GET /billing/link
+Get payment link for subscription tier.
+
+**Query Parameters:**
+- `tier` (required): `monthly`, `quarterly`, or `yearly`
+
+**Example:**
+```bash
+curl "https://your-worker.workers.dev/billing/link?tier=monthly"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "tier": "monthly",
+  "payment_link": "https://chase.com/payment/...",
+  "message": "Redirect user to this payment link to complete subscription"
+}
+```
+
+#### GET /store/link
+Get payment link for specific product SKU.
+
+**Query Parameters:**
+- `sku` (required): Product SKU identifier (alphanumeric, dash, underscore only)
+
+**Example:**
+```bash
+curl "https://your-worker.workers.dev/store/link?sku=EBOOK"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "sku": "EBOOK",
+  "payment_link": "https://chase.com/payment/...",
+  "message": "Redirect user to this payment link to complete purchase"
+}
+```
+
+### Entitlement Management
+
+#### GET /entitlements/check
+Check if user has active subscription or purchase entitlements.
+
+**Query Parameters:**
+- `user_id` (required): Unique user identifier
+
+**Example:**
+```bash
+curl "https://your-worker.workers.dev/entitlements/check?user_id=user123"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "user_id": "user123",
+  "has_access": true,
+  "subscription": {
+    "tier": "monthly",
+    "status": "active",
+    "expires_at": "2025-11-26T20:00:00Z"
+  },
+  "purchases": [
+    {
+      "sku": "EBOOK",
+      "purchased_at": "2024-10-15T10:00:00Z"
+    }
+  ],
+  "message": "User has active access"
+}
+```
+
+#### POST /entitlements/grant
+Grant subscription or purchase entitlement to a user (Admin only, requires authentication).
+
+**Headers:**
+- `Authorization: Bearer <CHATGPT_BEARER_TOKEN>`
+- `Content-Type: application/json`
+
+**Body:**
+```json
+{
+  "user_id": "user123",
+  "type": "subscription",
+  "tier": "monthly",
+  "expires_at": "2025-11-26T20:00:00Z"
+}
+```
+
+Or for purchases:
+```json
+{
+  "user_id": "user123",
+  "type": "purchase",
+  "sku": "EBOOK"
+}
+```
+
+**Example:**
+```bash
+curl -X POST "https://your-worker.workers.dev/entitlements/grant" \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user123",
+    "type": "subscription",
+    "tier": "monthly",
+    "expires_at": "2025-11-26T20:00:00Z"
+  }'
+```
+
+### ChatGPT Connector (Authenticated)
+
+All ChatGPT endpoints require `Authorization: Bearer <token>` header.
 
 - **POST /chatgpt/dispatch** - Trigger repository_dispatch events
 - **POST /chatgpt/prs/list** - List pull requests
@@ -35,24 +204,78 @@ All endpoints require `Authorization: Bearer <token>` header.
 
 ## Security
 
-- All endpoints require Bearer token authentication
-- GitHub token stored securely in Cloudflare environment
-- CORS enabled for ChatGPT integration
-- No merge or direct write capabilities
-- All actions are non-destructive and PR-gated
+### Authentication
+- ChatGPT endpoints require Bearer token authentication
+- Billing/store endpoints are public (payment links only, no sensitive data)
+- Entitlement grant endpoint requires admin authentication
+
+### Secrets Management
+- All secrets stored in Cloudflare Worker environment (never in code)
+- GitHub token, API keys, and payment links configured via `wrangler secret put`
+- No secrets committed to repository
+
+### Data Protection
+- Entitlement data stored in KV namespace with user-scoped keys
+- Payment links are environment-driven (easy to rotate)
+- CORS enabled for browser-based integration
+
+### Governance
+- No merge or direct write capabilities to repository
+- All GitHub actions are non-destructive and PR-gated
+- Maintains existing provider guard and consent workflow
 
 ## Testing Locally
 
+### Setup Local Environment
+
+Create `.dev.vars` file in `operators/relay/` directory:
+
+```env
+# DO NOT COMMIT THIS FILE
+GITHUB_TOKEN=ghp_your_token_here
+CHATGPT_BEARER_TOKEN=test-bearer-token
+CHASE_LINK_MONTHLY=https://example.com/pay/monthly
+CHASE_LINK_QUARTERLY=https://example.com/pay/quarterly
+CHASE_LINK_YEARLY=https://example.com/pay/yearly
+CHASE_LINK_SKU_EBOOK=https://example.com/pay/ebook
+CHASE_LINK_SKU_COURSE=https://example.com/pay/course
+```
+
+Add `.dev.vars` to `.gitignore` if not already present.
+
+### Start Local Dev Server
+
 ```bash
-# Install dependencies
-npm install -g wrangler
-
-# Start local dev server
+# From operators/relay directory
 wrangler dev
+```
 
-# Test endpoint
+### Test Endpoints
+
+```bash
+# Test billing link
+curl "http://localhost:8787/billing/link?tier=monthly"
+
+# Test store link
+curl "http://localhost:8787/store/link?sku=EBOOK"
+
+# Test entitlement check
+curl "http://localhost:8787/entitlements/check?user_id=test123"
+
+# Test entitlement grant (requires auth)
+curl -X POST "http://localhost:8787/entitlements/grant" \
+  -H "Authorization: Bearer test-bearer-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "test123",
+    "type": "subscription",
+    "tier": "monthly",
+    "expires_at": "2025-12-31T23:59:59Z"
+  }'
+
+# Test ChatGPT endpoint
 curl -X POST http://localhost:8787/chatgpt/prs/list \
-  -H "Authorization: Bearer your-test-token" \
+  -H "Authorization: Bearer test-bearer-token" \
   -H "Content-Type: application/json" \
   -d '{"owner": "TBR3661", "repo": "Soul-mirror", "state": "open"}'
 ```
@@ -63,6 +286,90 @@ View real-time logs:
 ```bash
 wrangler tail
 ```
+
+Or view in Cloudflare dashboard:
+1. Go to Workers & Pages
+2. Select your worker
+3. Click on "Logs" tab
+
+## Integration Example
+
+### Client-Side Integration
+
+```javascript
+// Get payment link for monthly subscription
+async function getSubscriptionLink(tier) {
+  const response = await fetch(
+    `https://your-worker.workers.dev/billing/link?tier=${tier}`
+  );
+  const data = await response.json();
+  
+  if (data.success) {
+    // Redirect user to payment link
+    window.location.href = data.payment_link;
+  }
+}
+
+// Check user entitlements
+async function checkAccess(userId) {
+  const response = await fetch(
+    `https://your-worker.workers.dev/entitlements/check?user_id=${userId}`
+  );
+  const data = await response.json();
+  
+  return data.has_access;
+}
+
+// Gate library access
+async function showLibrary(userId) {
+  const hasAccess = await checkAccess(userId);
+  
+  if (!hasAccess) {
+    // Show subscription options
+    showSubscriptionPrompt();
+  } else {
+    // Show private library content
+    loadLibraryContent();
+  }
+}
+```
+
+## KV Data Structure
+
+Entitlements are stored in KV with the following structure:
+
+```json
+{
+  "subscriptions": [
+    {
+      "tier": "monthly",
+      "status": "active",
+      "granted_at": "2024-10-26T20:00:00Z",
+      "expires_at": "2025-11-26T20:00:00Z"
+    }
+  ],
+  "purchases": [
+    {
+      "sku": "EBOOK",
+      "purchased_at": "2024-10-15T10:00:00Z"
+    }
+  ]
+}
+```
+
+Key format: `user:{user_id}`
+
+## Webhook Integration
+
+To automate entitlement grants after successful payment, set up a webhook from your payment provider:
+
+1. Configure webhook in Chase payment settings
+2. Point webhook to a secure endpoint that:
+   - Validates webhook signature
+   - Extracts user_id and purchase details
+   - Calls `/entitlements/grant` endpoint with admin credentials
+
+This keeps the entitlement ledger synchronized with actual payments.
 
 ## License
 

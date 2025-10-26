@@ -1,0 +1,35 @@
+name = "soul-mirror-relay"
+main = "cf-worker.js"
+compatibility_date = "2024-01-01"
+
+# KV Namespace for entitlement ledger
+# Create this namespace in Cloudflare dashboard before deploying
+# Run: wrangler kv:namespace create ENTITLEMENTS_KV
+# Run: wrangler kv:namespace create ENTITLEMENTS_KV --preview (for preview/dev)
+kv_namespaces = [
+  { binding = "ENTITLEMENTS_KV", id = "YOUR_KV_NAMESPACE_ID", preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID" }
+]
+
+# Environment variables (non-secret, optional defaults)
+[vars]
+# These can be set via wrangler.toml or in Cloudflare dashboard
+# Recommendation: Set in Cloudflare dashboard for easier management
+
+# Secrets (set via `wrangler secret put SECRET_NAME`)
+# DO NOT put actual values here - use wrangler CLI or Cloudflare dashboard
+# Required secrets:
+# - GITHUB_TOKEN: GitHub Personal Access Token
+# - CHATGPT_BEARER_TOKEN: Bearer token for ChatGPT authentication
+# - CHASE_LINK_MONTHLY: Chase payment link for monthly subscription
+# - CHASE_LINK_QUARTERLY: Chase payment link for quarterly subscription
+# - CHASE_LINK_YEARLY: Chase payment link for yearly subscription
+# - CHASE_LINK_SKU_*: Chase payment links for individual SKUs
+#
+# Example commands to set secrets:
+# wrangler secret put GITHUB_TOKEN
+# wrangler secret put CHATGPT_BEARER_TOKEN
+# wrangler secret put CHASE_LINK_MONTHLY
+# wrangler secret put CHASE_LINK_QUARTERLY
+# wrangler secret put CHASE_LINK_YEARLY
+# wrangler secret put CHASE_LINK_SKU_EBOOK
+# wrangler secret put CHASE_LINK_SKU_COURSE

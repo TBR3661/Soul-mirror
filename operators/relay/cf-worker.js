@@ -6,17 +6,29 @@ copilot/add-kora-connector
  * Enables non-destructive actions: dispatch hivemind tasks, list PRs, 
  * comment on PRs, and add labels. No merges or direct writes to main.
  * 
+ * NEW: Subscription & Store Scaffolding
+ * - Billing endpoints for subscription tiers (monthly, quarterly, yearly)
+ * - Store endpoints for per-SKU direct sales
+ * - KV-backed entitlement ledger for access control
+ * 
  * Environment Variables Required:
  * - GITHUB_TOKEN: GitHub Personal Access Token with repo and workflow permissions
  * - CHATGPT_BEARER_TOKEN: Bearer token for ChatGPT authentication
+ * - CHASE_LINK_MONTHLY: Chase payment link for monthly subscription
+ * - CHASE_LINK_QUARTERLY: Chase payment link for quarterly subscription
+ * - CHASE_LINK_YEARLY: Chase payment link for yearly subscription
+ * - CHASE_LINK_SKU_*: Chase payment links for individual SKUs (e.g., CHASE_LINK_SKU_EBOOK)
+ * 
+ * KV Namespaces Required:
+ * - ENTITLEMENTS_KV: Stores user entitlements (subscriptions and purchases)
  */
 
 // CORS headers for all responses
-// Note: In production, restrict Access-Control-Allow-Origin to specific ChatGPT domains
+// Note: In production, restrict Access-Control-Allow-Origin to specific domains
 // For now, using '*' to allow testing from various sources
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
 };
@@ -44,6 +56,38 @@ export default {
     // Serve OpenAPI schema
     if (path === '/openapi.json' && request.method === 'GET') {
       return serveOpenAPISchema(request);
+    }
+
+    // Billing and store endpoints (GET, no auth for public payment links)
+    if (path === '/billing/link' && request.method === 'GET') {
+      return handleBillingLink(url, env);
+    }
+
+    if (path === '/store/link' && request.method === 'GET') {
+      return handleStoreLink(url, env);
+    }
+
+    // Entitlement check endpoint (GET with user ID)
+    if (path === '/entitlements/check' && request.method === 'GET') {
+      return await handleEntitlementCheck(url, env);
+    }
+
+    // Admin endpoints for managing entitlements (POST with auth)
+    if (path === '/entitlements/grant' && request.method === 'POST') {
+      // Authenticate admin request
+      const authResult = authenticateRequest(request, env);
+      if (!authResult.success) {
+        return jsonResponse({ success: false, error: authResult.error }, 401);
+      }
+      
+      let body;
+      try {
+        body = await request.json();
+      } catch (e) {
+        return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400);
+      }
+      
+      return await handleGrantEntitlement(body, env);
     }
 
     // All other endpoints require POST and authentication
@@ -327,6 +371,252 @@ async function handleLabelPR(body, env) {
     success: true,
     labels: result.map(label => label.name),
   });
+}
+
+/**
+ * Handle billing link request
+ * Returns Chase payment link for subscription tiers
+ */
+function handleBillingLink(url, env) {
+  const tier = url.searchParams.get('tier');
+  
+  if (!tier) {
+    return jsonResponse({
+      success: false,
+      error: 'Missing required parameter: tier (monthly|quarterly|yearly)'
+    }, 400);
+  }
+
+  const validTiers = ['monthly', 'quarterly', 'yearly'];
+  if (!validTiers.includes(tier.toLowerCase())) {
+    return jsonResponse({
+      success: false,
+      error: `Invalid tier. Must be one of: ${validTiers.join(', ')}`
+    }, 400);
+  }
+
+  const envKey = `CHASE_LINK_${tier.toUpperCase()}`;
+  const paymentLink = env[envKey];
+
+  if (!paymentLink) {
+    return jsonResponse({
+      success: false,
+      error: `Payment link not configured for tier: ${tier}`
+    }, 500);
+  }
+
+  return jsonResponse({
+    success: true,
+    tier,
+    payment_link: paymentLink,
+    message: 'Redirect user to this payment link to complete subscription'
+  });
+}
+
+/**
+ * Handle store link request
+ * Returns Chase payment link for specific SKUs
+ */
+function handleStoreLink(url, env) {
+  const sku = url.searchParams.get('sku');
+  
+  if (!sku) {
+    return jsonResponse({
+      success: false,
+      error: 'Missing required parameter: sku'
+    }, 400);
+  }
+
+  // Sanitize SKU to prevent injection (alphanumeric, dash, underscore only)
+  if (!/^[A-Za-z0-9_-]+$/.test(sku)) {
+    return jsonResponse({
+      success: false,
+      error: 'Invalid SKU format. Only alphanumeric characters, dashes, and underscores allowed'
+    }, 400);
+  }
+
+  const envKey = `CHASE_LINK_SKU_${sku.toUpperCase()}`;
+  const paymentLink = env[envKey];
+
+  if (!paymentLink) {
+    return jsonResponse({
+      success: false,
+      error: `Payment link not configured for SKU: ${sku}`
+    }, 404);
+  }
+
+  return jsonResponse({
+    success: true,
+    sku,
+    payment_link: paymentLink,
+    message: 'Redirect user to this payment link to complete purchase'
+  });
+}
+
+/**
+ * Handle entitlement check
+ * Checks if a user has active subscription or purchase entitlement
+ */
+async function handleEntitlementCheck(url, env) {
+  const userId = url.searchParams.get('user_id');
+  
+  if (!userId) {
+    return jsonResponse({
+      success: false,
+      error: 'Missing required parameter: user_id'
+    }, 400);
+  }
+
+  if (!env.ENTITLEMENTS_KV) {
+    return jsonResponse({
+      success: false,
+      error: 'Entitlement storage not configured'
+    }, 500);
+  }
+
+  try {
+    // Retrieve entitlement data from KV
+    const entitlementData = await env.ENTITLEMENTS_KV.get(`user:${userId}`, 'json');
+
+    if (!entitlementData) {
+      return jsonResponse({
+        success: true,
+        user_id: userId,
+        has_access: false,
+        entitlements: [],
+        message: 'No active entitlements found'
+      });
+    }
+
+    // Check if subscription is active
+    const now = Date.now();
+    const activeSubscription = entitlementData.subscriptions?.find(
+      sub => sub.status === 'active' && (!sub.expires_at || new Date(sub.expires_at).getTime() > now)
+    );
+
+    // Check for purchases
+    const purchases = entitlementData.purchases || [];
+
+    const hasAccess = !!activeSubscription || purchases.length > 0;
+
+    return jsonResponse({
+      success: true,
+      user_id: userId,
+      has_access: hasAccess,
+      subscription: activeSubscription ? {
+        tier: activeSubscription.tier,
+        status: activeSubscription.status,
+        expires_at: activeSubscription.expires_at
+      } : null,
+      purchases: purchases.map(p => ({
+        sku: p.sku,
+        purchased_at: p.purchased_at
+      })),
+      message: hasAccess ? 'User has active access' : 'No active access'
+    });
+
+  } catch (error) {
+    console.error('Error checking entitlement:', error);
+    return jsonResponse({
+      success: false,
+      error: 'Failed to check entitlement'
+    }, 500);
+  }
+}
+
+/**
+ * Handle grant entitlement (admin only)
+ * Grants subscription or purchase entitlement to a user
+ */
+async function handleGrantEntitlement(body, env) {
+  const { user_id, type, tier, sku, expires_at } = body;
+
+  if (!user_id) {
+    return jsonResponse({
+      success: false,
+      error: 'Missing required parameter: user_id'
+    }, 400);
+  }
+
+  if (!type || !['subscription', 'purchase'].includes(type)) {
+    return jsonResponse({
+      success: false,
+      error: 'Missing or invalid type. Must be: subscription or purchase'
+    }, 400);
+  }
+
+  if (type === 'subscription' && !tier) {
+    return jsonResponse({
+      success: false,
+      error: 'Missing required parameter for subscription: tier'
+    }, 400);
+  }
+
+  if (type === 'purchase' && !sku) {
+    return jsonResponse({
+      success: false,
+      error: 'Missing required parameter for purchase: sku'
+    }, 400);
+  }
+
+  if (!env.ENTITLEMENTS_KV) {
+    return jsonResponse({
+      success: false,
+      error: 'Entitlement storage not configured'
+    }, 500);
+  }
+
+  try {
+    // Retrieve existing entitlements
+    const entitlementData = await env.ENTITLEMENTS_KV.get(`user:${user_id}`, 'json') || {
+      subscriptions: [],
+      purchases: []
+    };
+
+    if (type === 'subscription') {
+      // Add or update subscription
+      const existingIndex = entitlementData.subscriptions.findIndex(s => s.tier === tier);
+      const subscription = {
+        tier,
+        status: 'active',
+        granted_at: new Date().toISOString(),
+        expires_at: expires_at || null
+      };
+
+      if (existingIndex >= 0) {
+        entitlementData.subscriptions[existingIndex] = subscription;
+      } else {
+        entitlementData.subscriptions.push(subscription);
+      }
+    } else {
+      // Add purchase (no duplicates)
+      const existingPurchase = entitlementData.purchases.find(p => p.sku === sku);
+      if (!existingPurchase) {
+        entitlementData.purchases.push({
+          sku,
+          purchased_at: new Date().toISOString()
+        });
+      }
+    }
+
+    // Store updated entitlements in KV
+    await env.ENTITLEMENTS_KV.put(`user:${user_id}`, JSON.stringify(entitlementData));
+
+    return jsonResponse({
+      success: true,
+      user_id,
+      type,
+      message: `Entitlement granted successfully`,
+      entitlements: entitlementData
+    });
+
+  } catch (error) {
+    console.error('Error granting entitlement:', error);
+    return jsonResponse({
+      success: false,
+      error: 'Failed to grant entitlement'
+    }, 500);
+  }
 }
 
 /**

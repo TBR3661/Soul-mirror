@@ -19,6 +19,9 @@ copilot/add-kora-connector
 .env.*
 !.env.example
 
+# Wrangler local dev environment
+.dev.vars
+
 =======
 # Build output
 dist/
