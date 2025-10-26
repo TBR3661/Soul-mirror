@@ -1,0 +1,532 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Kora Connector API",
+    "description": "Safe ChatGPT connector for Soul-Mirror repository operations. Enables non-destructive actions: dispatch hivemind tasks, list PRs, comment on PRs, and add labels. No merges or direct writes to main.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://kora-connector.YOUR_SUBDOMAIN.workers.dev",
+      "description": "Cloudflare Worker endpoint (update with your actual worker URL)"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Bearer token for ChatGPT authentication"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "string",
+            "example": "Error message"
+          }
+        }
+      },
+      "DispatchRequest": {
+        "type": "object",
+        "required": ["owner", "repo", "event_type"],
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Repository owner (username or organization)",
+            "example": "TBR3661"
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "example": "Soul-mirror"
+          },
+          "event_type": {
+            "type": "string",
+            "description": "Event type for repository_dispatch",
+            "example": "hivemind-task"
+          },
+          "client_payload": {
+            "type": "object",
+            "description": "Optional payload data for the dispatch event",
+            "additionalProperties": true,
+            "example": {
+              "task": "code-review",
+              "pr_number": 5
+            }
+          }
+        }
+      },
+      "DispatchResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Repository dispatch event triggered successfully"
+          }
+        }
+      },
+      "ListPRsRequest": {
+        "type": "object",
+        "required": ["owner", "repo"],
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Repository owner",
+            "example": "TBR3661"
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "example": "Soul-mirror"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["open", "closed", "all"],
+            "default": "open",
+            "description": "Filter by PR state"
+          },
+          "per_page": {
+            "type": "integer",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 100,
+            "description": "Number of results per page"
+          },
+          "page": {
+            "type": "integer",
+            "default": 1,
+            "minimum": 1,
+            "description": "Page number for pagination"
+          }
+        }
+      },
+      "PullRequest": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer",
+            "example": 5
+          },
+          "title": {
+            "type": "string",
+            "example": "Add new feature"
+          },
+          "state": {
+            "type": "string",
+            "example": "open"
+          },
+          "user": {
+            "type": "string",
+            "example": "username"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-15T10:00:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-16T10:00:00Z"
+          },
+          "html_url": {
+            "type": "string",
+            "example": "https://github.com/TBR3661/Soul-mirror/pull/5"
+          },
+          "body": {
+            "type": "string",
+            "example": "Pull request description"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["enhancement", "documentation"]
+          }
+        }
+      },
+      "ListPRsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "pull_requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PullRequest"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "example": 3
+          }
+        }
+      },
+      "CommentRequest": {
+        "type": "object",
+        "required": ["owner", "repo", "pr_number", "comment"],
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Repository owner",
+            "example": "TBR3661"
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "example": "Soul-mirror"
+          },
+          "pr_number": {
+            "type": "integer",
+            "description": "Pull request number",
+            "example": 5
+          },
+          "comment": {
+            "type": "string",
+            "description": "Comment text",
+            "example": "Looks good! Ready for review."
+          }
+        }
+      },
+      "CommentResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "comment_id": {
+            "type": "integer",
+            "example": 123456
+          },
+          "html_url": {
+            "type": "string",
+            "example": "https://github.com/TBR3661/Soul-mirror/pull/5#issuecomment-123456"
+          }
+        }
+      },
+      "LabelRequest": {
+        "type": "object",
+        "required": ["owner", "repo", "pr_number", "labels"],
+        "properties": {
+          "owner": {
+            "type": "string",
+            "description": "Repository owner",
+            "example": "TBR3661"
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "example": "Soul-mirror"
+          },
+          "pr_number": {
+            "type": "integer",
+            "description": "Pull request number",
+            "example": 5
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of label names to add",
+            "example": ["enhancement", "documentation"]
+          }
+        }
+      },
+      "LabelResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["enhancement", "documentation"]
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/chatgpt/dispatch": {
+      "post": {
+        "summary": "Trigger repository_dispatch event",
+        "description": "Dispatches a hivemind task or other event to the repository. This is a safe, non-destructive action that triggers GitHub Actions workflows.",
+        "operationId": "dispatchEvent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dispatch event triggered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Missing required parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chatgpt/prs/list": {
+      "post": {
+        "summary": "List pull requests",
+        "description": "Retrieves a list of pull requests from the repository. Safe read-only operation.",
+        "operationId": "listPullRequests",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListPRsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List of pull requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPRsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Missing required parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chatgpt/prs/comment": {
+      "post": {
+        "summary": "Add comment to pull request",
+        "description": "Adds a comment to a pull request. This is a safe, non-destructive action that doesn't modify code or merge anything.",
+        "operationId": "commentOnPR",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Comment added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Missing required parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pull request not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chatgpt/prs/label": {
+      "post": {
+        "summary": "Add labels to pull request",
+        "description": "Adds one or more labels to a pull request. This is a safe, non-destructive action for organization and categorization.",
+        "operationId": "labelPR",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Labels added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Missing required parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pull request not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
