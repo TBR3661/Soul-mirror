@@ -100,7 +100,7 @@ gh workflow run hivemind-foreman.yml
 Or via repository_dispatch:
 
 ```bash
-gh api repos/TBR3661/Soul-mirror/dispatches \
+gh api repos/OWNER/REPO/dispatches \
   -X POST \
   -f event_type=hive-execute
 ```

@@ -151,7 +151,7 @@ gh workflow run hivemind-foreman.yml -f dry_run=true
 
 ```bash
 # Via repository_dispatch event
-gh api repos/TBR3661/Soul-mirror/dispatches \
+gh api repos/OWNER/REPO/dispatches \
   -X POST \
   -f event_type=hive-execute \
   -f client_payload[plan_file]=.hivemind/plan.yaml \
@@ -204,7 +204,7 @@ The orchestrator can dispatch to multiple repositories:
 ```yaml
 # In plan.yaml
 execution:
-  target_repository: "TBR3661/Soul-mirror"  # or "TBR3661/Other-Repo"
+  target_repository: "OWNER/REPO"  # e.g., "OWNER/Soul-mirror" or "OWNER/Other-Repo"
 ```
 
 Entity manifests can specify different allowed paths per repository.

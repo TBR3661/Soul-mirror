@@ -59,9 +59,13 @@ async function handleRequest(request) {
   const dryRun = body.dry_run || false
   
   // Dispatch to GitHub
+  // TODO: Replace 'OWNER/REPO' with your actual repository
+  const repoOwner = 'OWNER'
+  const repoName = 'REPO'
+  
   try {
     const githubResponse = await fetch(
-      'https://api.github.com/repos/TBR3661/Soul-mirror/dispatches',
+      `https://api.github.com/repos/${repoOwner}/${repoName}/dispatches`,
       {
         method: 'POST',
         headers: {
@@ -173,11 +177,11 @@ To support multiple repositories, extend the worker:
 
 ```javascript
 const REPO_MAP = {
-  'soul-mirror': 'TBR3661/Soul-mirror',
-  'other-repo': 'TBR3661/Other-Repo'
+  'soul-mirror': 'OWNER/Soul-mirror',
+  'other-repo': 'OWNER/Other-Repo'
 }
 
-const repo = REPO_MAP[body.repository] || 'TBR3661/Soul-mirror'
+const repo = REPO_MAP[body.repository] || 'OWNER/REPO'
 const apiUrl = `https://api.github.com/repos/${repo}/dispatches`
 ```
 
