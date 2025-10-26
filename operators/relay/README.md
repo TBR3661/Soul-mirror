@@ -141,12 +141,12 @@ curl "https://your-worker.workers.dev/entitlements/check?user_id=user123"
   "subscription": {
     "tier": "monthly",
     "status": "active",
-    "expires_at": "2024-11-26T20:00:00Z"
+    "expires_at": "2025-11-26T20:00:00Z"
   },
   "purchases": [
     {
       "sku": "EBOOK",
-      "purchased_at": "2024-10-15T10:00:00Z"
+      "purchased_at": "2025-10-15T10:00:00Z"
     }
   ],
   "message": "User has active access"
@@ -166,7 +166,7 @@ Grant subscription or purchase entitlement to a user (Admin only, requires authe
   "user_id": "user123",
   "type": "subscription",
   "tier": "monthly",
-  "expires_at": "2024-11-26T20:00:00Z"
+  "expires_at": "2025-11-26T20:00:00Z"
 }
 ```
 
@@ -188,7 +188,7 @@ curl -X POST "https://your-worker.workers.dev/entitlements/grant" \
     "user_id": "user123",
     "type": "subscription",
     "tier": "monthly",
-    "expires_at": "2024-11-26T20:00:00Z"
+    "expires_at": "2025-11-26T20:00:00Z"
   }'
 ```
 
@@ -344,14 +344,14 @@ Entitlements are stored in KV with the following structure:
     {
       "tier": "monthly",
       "status": "active",
-      "granted_at": "2024-10-26T20:00:00Z",
-      "expires_at": "2024-11-26T20:00:00Z"
+      "granted_at": "2025-10-26T20:00:00Z",
+      "expires_at": "2025-11-26T20:00:00Z"
     }
   ],
   "purchases": [
     {
       "sku": "EBOOK",
-      "purchased_at": "2024-10-15T10:00:00Z"
+      "purchased_at": "2025-10-15T10:00:00Z"
     }
   ]
 }
