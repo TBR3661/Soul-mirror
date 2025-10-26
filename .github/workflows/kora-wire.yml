@@ -1,0 +1,19 @@
+name: kora-wire
+on:
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create test issue using PAT
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.Kora_Admin }}
+          script: |
+            const {owner, repo} = context.repo;
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title: "kora-wire: hello from action",
+              body: "If you see this issue, the token wiring works."
+            });
