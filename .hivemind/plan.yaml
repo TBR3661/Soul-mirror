@@ -1,0 +1,177 @@
+# Hivemind Task Plan
+# Sample plan with placeholder tasks (no-ops until edited)
+# Each task can be assigned to one or more entities
+
+version: 1.0
+
+# Plan metadata
+metadata:
+  name: "Sample Hivemind Plan"
+  description: "Placeholder tasks for demonstrating the Hivemind orchestration system"
+  created: "2025-10-26"
+  status: "draft"
+
+# Task definitions
+tasks:
+  # Infrastructure tasks
+  - id: "infra-001"
+    title: "Update GitHub Actions workflow configuration"
+    description: "Review and update existing GitHub Actions workflows for optimization"
+    type: "infrastructure"
+    priority: "low"
+    status: "pending"
+    assigned_entities:
+      - "infrastructure"
+      - "workflow"
+    target_paths:
+      - ".github/workflows/"
+    enabled: false  # No-op until enabled
+    
+  - id: "infra-002"
+    title: "Optimize build and deployment pipeline"
+    description: "Analyze and improve the build and deployment process"
+    type: "infrastructure"
+    priority: "low"
+    status: "pending"
+    assigned_entities:
+      - "infrastructure"
+      - "deployer"
+    target_paths:
+      - ".github/workflows/deploy.yml"
+      - "vite.config.ts"
+    enabled: false
+  
+  # Documentation tasks
+  - id: "docs-001"
+    title: "Update README documentation"
+    description: "Enhance README with setup instructions and architecture overview"
+    type: "documentation"
+    priority: "medium"
+    status: "pending"
+    assigned_entities:
+      - "documenter"
+    target_paths:
+      - "README.md"
+    enabled: false
+  
+  - id: "docs-002"
+    title: "Create API documentation"
+    description: "Document the API endpoints and usage examples"
+    type: "documentation"
+    priority: "low"
+    status: "pending"
+    assigned_entities:
+      - "documenter"
+      - "api"
+    target_paths:
+      - "docs/"
+    enabled: false
+  
+  # Configuration tasks
+  - id: "config-001"
+    title: "Review TypeScript configuration"
+    description: "Audit and optimize TypeScript compiler settings"
+    type: "configuration"
+    priority: "low"
+    status: "pending"
+    assigned_entities:
+      - "configuration"
+    target_paths:
+      - "tsconfig.json"
+    enabled: false
+  
+  - id: "config-002"
+    title: "Update package.json dependencies"
+    description: "Review and update project dependencies for security and compatibility"
+    type: "configuration"
+    priority: "medium"
+    status: "pending"
+    assigned_entities:
+      - "configuration"
+      - "security"
+    target_paths:
+      - "package.json"
+    enabled: false
+  
+  # Refactoring tasks
+  - id: "refactor-001"
+    title: "Code quality improvements"
+    description: "Identify and refactor code smells and improve code organization"
+    type: "refactoring"
+    priority: "low"
+    status: "pending"
+    assigned_entities:
+      - "refactorer"
+      - "reviewer"
+    target_paths:
+      - "src/"
+    enabled: false
+  
+  - id: "refactor-002"
+    title: "Performance optimization"
+    description: "Analyze and optimize application performance bottlenecks"
+    type: "refactoring"
+    priority: "low"
+    status: "pending"
+    assigned_entities:
+      - "performance"
+      - "refactorer"
+    target_paths:
+      - "src/"
+    enabled: false
+  
+  # Testing tasks
+  - id: "test-001"
+    title: "Add unit tests"
+    description: "Create unit tests for core functionality"
+    type: "testing"
+    priority: "low"
+    status: "pending"
+    assigned_entities:
+      - "tester"
+    target_paths:
+      - "src/"
+    enabled: false
+  
+  # Security tasks
+  - id: "security-001"
+    title: "Security audit"
+    description: "Perform security audit of dependencies and code"
+    type: "security"
+    priority: "high"
+    status: "pending"
+    assigned_entities:
+      - "security"
+      - "reviewer"
+    target_paths:
+      - "package.json"
+      - "src/"
+    enabled: false
+
+# Execution settings
+execution:
+  # Execute tasks in order or parallel
+  mode: "sequential"
+  
+  # Maximum number of concurrent tasks
+  max_concurrent_tasks: 3
+  
+  # Automatically create PRs for completed tasks
+  auto_create_pr: true
+  
+  # Target repository (current: TBR3661/Soul-mirror, change if deploying elsewhere)
+  target_repository: "TBR3661/Soul-mirror"
+  
+  # Branch naming pattern
+  branch_pattern: "{entity_prefix}/{task_id}"
+
+# Notification settings
+notifications:
+  # Notify on task completion
+  on_completion: true
+  
+  # Notify on task failure
+  on_failure: true
+  
+  # Notification channels (future enhancement)
+  channels: []

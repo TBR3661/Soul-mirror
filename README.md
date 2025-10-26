@@ -3,6 +3,9 @@
 - Installable PWA (Android prompt, iOS Add to Home Screen)
 - Your full app structure with stubs where source is unavailable
 - GitHub Pages ready
+copilot/activate-hivemind-build-crew
+- **NEW**: Hivemind Build Crew orchestration system for secure, multi-entity automation
+=======
 - **OpenAI-first architecture** with governance guardrails and relay hardening
 
 ## Features
@@ -60,6 +63,7 @@ npm run deploy
 See [operators/relay/README.md](operators/relay/README.md) for relay deployment instructions.
 
 ## Deploy to GitHub Pages
+main
 
 1) Edit `vite.config.ts` → set `base: '/YOUR_REPO_NAME/'`.
 2) Build & deploy:
@@ -72,6 +76,32 @@ npm run deploy
 
 Then share the URL with beta testers to install on phones.
 
+copilot/activate-hivemind-build-crew
+## Hivemind Build Crew
+
+This repository includes a private, secure orchestration system that enables multiple AI entities to collaborate on work through guarded automation. See [docs/HIVEMIND.md](docs/HIVEMIND.md) for complete documentation.
+
+### Quick Start
+
+The Hivemind system consists of:
+- 23 entity manifests in `.hivemind/entities/` (safe baseline, all disabled by default)
+- Task plans in `.hivemind/plan.yaml` (no-op placeholders until enabled)
+- Security policy in `.hivemind/policy.yaml` (allow/deny rules)
+- Foreman orchestrator at `.github/workflows/hivemind-foreman.yml`
+
+To execute tasks:
+```bash
+# Test with dry run
+gh workflow run hivemind-foreman.yml -f dry_run=true
+
+# Execute enabled tasks
+gh workflow run hivemind-foreman.yml
+```
+
+All tasks are disabled by default. Edit `.hivemind/plan.yaml` and set `enabled: true` for specific tasks to activate them.
+
+**Security**: No secrets in code. All credentials stored in GitHub Secrets. PR-only flow with code review required.
+=======
 copilot/add-provider-guard-ci
 ## Project Structure
 
@@ -114,4 +144,5 @@ See LICENSE file for details.
 ## Governance
 
 This repository follows the [HiveMind Charter](docs/HIVEMIND_CHARTER.md) for collaborative governance. See the [Governance Guide](docs/HIVEMIND_GOVERNANCE.md) for practical usage instructions.
+main
 main

@@ -1,0 +1,15 @@
+# Entity: Research
+# Research and exploration of new technologies
+name: research
+display_name: "Research"
+description: "Research and exploration of new technologies entity"
+provider: "openai"
+model: "gpt-4"
+capabilities:
+  allowed_paths: []
+  allowed_actions: []
+  branch_prefix: "ops/research"
+permissions:
+  read: false
+  write: false
+  create_pr: false

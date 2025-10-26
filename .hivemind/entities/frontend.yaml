@@ -1,0 +1,15 @@
+# Entity: Frontend
+# Frontend development and UI/UX
+name: frontend
+display_name: "Frontend"
+description: "Frontend development and UI/UX entity"
+provider: "openai"
+model: "gpt-4"
+capabilities:
+  allowed_paths: []
+  allowed_actions: []
+  branch_prefix: "ops/frontend"
+permissions:
+  read: false
+  write: false
+  create_pr: false
