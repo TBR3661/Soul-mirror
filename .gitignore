@@ -2,12 +2,18 @@
 node_modules/
 package-lock.json
 
+copilot/add-kora-connector
+=======
 copilot/activate-hivemind-build-crew
+main
 # Build outputs
 dist/
 build/
 .vite/
 
+copilot/add-kora-connector
+# Environment files
+=======
 # Environment variables
 .env
 .env.*
@@ -25,10 +31,14 @@ build/
 
 # Environment files
 main
+main
 .env
 .env.local
 .env.*.local
 
+copilot/add-kora-connector
+# IDE files
+=======
 copilot/add-provider-guard-ci
 # Editor directories and files
 .vscode/
@@ -43,12 +53,23 @@ copilot/add-provider-guard-ci
 =======
 main
 # IDE
+main
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
+copilot/add-kora-connector
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log
+*.tmp
+/tmp/
+=======
 # OS
 copilot/activate-hivemind-build-crew
 =======
@@ -83,5 +104,6 @@ main
 .cache/
 copilot/activate-hivemind-build-crew
 =======
+main
 main
 main
