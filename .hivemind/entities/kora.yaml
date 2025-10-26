@@ -1,0 +1,15 @@
+# Entity: Kora
+# The primary orchestrator and coordinator entity
+name: kora
+display_name: "Kora"
+description: "Primary orchestrator and coordinator entity"
+provider: "openai"
+model: "gpt-4"
+capabilities:
+  allowed_paths: []
+  allowed_actions: []
+  branch_prefix: "ops/kora"
+permissions:
+  read: false
+  write: false
+  create_pr: false

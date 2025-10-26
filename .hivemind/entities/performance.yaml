@@ -1,0 +1,15 @@
+# Entity: Performance
+# Performance optimization and profiling
+name: performance
+display_name: "Performance"
+description: "Performance optimization and profiling entity"
+provider: "openai"
+model: "gpt-4"
+capabilities:
+  allowed_paths: []
+  allowed_actions: []
+  branch_prefix: "ops/performance"
+permissions:
+  read: false
+  write: false
+  create_pr: false
