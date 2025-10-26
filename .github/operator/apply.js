@@ -36,7 +36,10 @@ function isPathAllowed(filePath) {
   
   // Check deny list first (higher priority)
   for (const deniedPath of DENY_LIST) {
-    if (normalizedPath.startsWith(deniedPath) || normalizedPath.includes(`/${deniedPath}`)) {
+    const normalizedDenied = deniedPath.replace(/\\/g, '/');
+    // Match if path starts with denied path or has it as a directory component
+    if (normalizedPath.startsWith(normalizedDenied) || 
+        normalizedPath.startsWith('/' + normalizedDenied)) {
       return false;
     }
   }
@@ -133,6 +136,9 @@ function applyFileUpdates(files) {
         // Create or update operation
         const dirPath = path.dirname(fullPath);
         
+        // Check if file exists before writing
+        const fileExists = fs.existsSync(fullPath);
+        
         // Ensure directory exists
         if (!fs.existsSync(dirPath)) {
           fs.mkdirSync(dirPath, { recursive: true });
@@ -141,7 +147,7 @@ function applyFileUpdates(files) {
         // Write file content
         fs.writeFileSync(fullPath, file.content, 'utf8');
         
-        const action = fs.existsSync(fullPath) ? 'updated' : 'created';
+        const action = fileExists ? 'updated' : 'created';
         results.push({
           path: filePath,
           status: action,

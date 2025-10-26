@@ -121,17 +121,19 @@ jobs:
             }
             
             // Create pull request
-            const prBody = `## Hivemind Operator Update
-            
-            This PR was automatically created by the Hivemind Operator in response to a repository_dispatch event.
-            
-            **Task**: ${taskDesc}
-            **Branch**: \`${branchName}\`
-            **Triggered**: ${new Date().toISOString()}
-            ${resultsDetails}
-            
-            ---
-            *This is an automated operation. Review changes carefully before merging.*`;
+            const prBody = [
+              '## Hivemind Operator Update',
+              '',
+              'This PR was automatically created by the Hivemind Operator in response to a repository_dispatch event.',
+              '',
+              `**Task**: ${taskDesc}`,
+              `**Branch**: \`${branchName}\``,
+              `**Triggered**: ${new Date().toISOString()}`,
+              resultsDetails,
+              '',
+              '---',
+              '*This is an automated operation. Review changes carefully before merging.*'
+            ].join('\n');
             
             const { data: pr } = await github.rest.pulls.create({
               owner: context.repo.owner,
@@ -155,7 +157,7 @@ jobs:
           if [ -f operator-results.json ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Results" >> $GITHUB_STEP_SUMMARY
-            cat operator-results.json | jq -r '.[] | "- \(.status): \(.path) - \(.message)"' >> $GITHUB_STEP_SUMMARY
+            jq -r '.[] | "- \(.status): \(.path) - \(.message)"' operator-results.json >> $GITHUB_STEP_SUMMARY
           fi
           
           if [ "${{ steps.apply.outputs.changes_detected }}" = "true" ]; then
