@@ -29,7 +29,7 @@ const getApiKeyForEntity = (entityId?: string): string | null => {
   }
 
   // Priority 3: Build-time environment keys (only if enabled)
-  const defaultKeysEnabled = import.meta.env.VITE_DEFAULT_KEYS_ENABLED === 'true';
+  const defaultKeysEnabled = import.meta.env.VITE_DEFAULT_KEYS_ENABLED?.toLowerCase() === 'true';
   if (defaultKeysEnabled) {
     // Priority 3a: Per-entity environment key
     if (entityId) {
