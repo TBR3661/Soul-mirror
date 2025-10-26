@@ -15,3 +15,7 @@ npm run deploy
 3) Enable GitHub Pages: Settings → Pages → Branch `gh-pages`.
 
 Then share the URL with beta testers to install on phones.
+
+## Governance
+
+This repository follows the [HiveMind Charter](docs/HIVEMIND_CHARTER.md) for collaborative governance. See the [Governance Guide](docs/HIVEMIND_GOVERNANCE.md) for practical usage instructions.

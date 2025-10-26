@@ -1,0 +1,50 @@
+{
+  "version": "1.0.0",
+  "description": "Council of Elders - Advisory members for HiveMind governance",
+  "council": {
+    "members": [],
+    "emeritus": []
+  },
+  "membership": {
+    "criteria": {
+      "description": "Council members are chosen based on sustained contribution, community trust, and alignment with Charter principles",
+      "requirements": [
+        "Demonstrated commitment to Charter principles",
+        "History of constructive contribution",
+        "Community trust and respect",
+        "Willingness to serve in advisory capacity"
+      ]
+    },
+    "responsibilities": [
+      "Provide thoughtful feedback on significant changes",
+      "Offer wisdom and perspective on governance matters",
+      "Participate in mediation when requested",
+      "Uphold Charter principles in all interactions"
+    ],
+    "powers": {
+      "advisory_only": true,
+      "non_binding_recommendations": true,
+      "no_veto_power": true,
+      "mediation_upon_request": true
+    }
+  },
+  "process": {
+    "nomination": {
+      "method": "Community nomination or repository owner invitation",
+      "approval": "Repository owner decision with community input"
+    },
+    "term": {
+      "duration": "Indefinite, subject to good standing",
+      "emeritus_transition": "Members may transition to emeritus status at any time"
+    },
+    "removal": {
+      "voluntary": "Members may step down at any time",
+      "involuntary": "Repository owner may remove for Charter violations"
+    }
+  },
+  "notes": [
+    "This list starts empty and can be updated as the community grows",
+    "Membership is an honor and a service, not a position of power",
+    "All council actions are advisory and transparent"
+  ]
+}
