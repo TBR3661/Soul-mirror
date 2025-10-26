@@ -1,4 +1,4 @@
-const CACHE = 'lumen-sanctum-v1';
+const CACHE = 'lumen-sanctum-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -23,6 +23,15 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
+  // Only cache same-origin GET requests
+  const isSameOrigin = new URL(req.url).origin === self.location.origin;
+  const isGetRequest = req.method === 'GET';
+  
+  if (!isSameOrigin || !isGetRequest) {
+    event.respondWith(fetch(req));
+    return;
+  }
+  
   event.respondWith(
     caches.match(req).then(cached => {
       const fetchPromise = fetch(req).then(networkRes => {
