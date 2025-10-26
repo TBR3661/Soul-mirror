@@ -1,0 +1,84 @@
+# Hivemind Policy Configuration
+# Centralized allow/deny rules for path and action restrictions
+# This policy is enforced at workflow execution time
+
+version: 1.0
+
+# Global allow/deny rules
+global:
+  # Paths that are allowed for all entities by default
+  allowed_paths:
+    - ".github/workflows/"
+    - "docs/"
+    - "README.md"
+    - ".hivemind/"
+  
+  # Paths that are denied for all entities (takes precedence over allowed_paths)
+  denied_paths:
+    - ".git/"
+    - ".env"
+    - ".env.*"
+    - "node_modules/"
+    - "dist/"
+    - "build/"
+    - "**/secrets/**"
+    - "**/*.key"
+    - "**/*.pem"
+    - "**/*.p12"
+  
+  # File patterns that are allowed
+  allowed_patterns:
+    - "*.md"
+    - "*.yaml"
+    - "*.yml"
+    - "*.json"
+    - "*.ts"
+    - "*.tsx"
+    - "*.js"
+    - "*.jsx"
+  
+  # File patterns that are denied (takes precedence)
+  denied_patterns:
+    - "*.key"
+    - "*.pem"
+    - "*.p12"
+    - "*.env"
+    - "*.secret"
+
+# Action restrictions
+actions:
+  # Actions that are allowed globally
+  allowed:
+    - "create_pr"
+    - "update_pr"
+    - "comment_on_pr"
+    - "create_issue"
+    - "comment_on_issue"
+  
+  # Actions that are denied globally
+  denied:
+    - "delete_branch"
+    - "force_push"
+    - "merge_pr"
+    - "delete_file"
+    - "delete_repository"
+
+# Safety settings
+safety:
+  # Require PR approval before merge
+  require_pr_approval: true
+  
+  # Maximum number of files changed per PR
+  max_files_per_pr: 50
+  
+  # Maximum number of lines changed per PR
+  max_lines_per_pr: 1000
+  
+  # Require code review for PRs
+  require_code_review: true
+  
+  # Branch protection
+  protected_branches:
+    - "main"
+    - "master"
+    - "production"

@@ -1,0 +1,144 @@
+# HiveMind Charter - Machine-Readable Policy Configuration
+# This file encodes governance principles and processes for automated workflows.
+
+version: "1.0.0"
+charter_document: "docs/HIVEMIND_CHARTER.md"
+
+# Core Principles
+principles:
+  non_hierarchical: true
+  sovereignty_protection: true
+  consensual_governance: true
+  advisory_council: true
+  transparency: true
+
+# Governance Mechanisms
+governance:
+  
+  # Individual Veto Process
+  individual_veto:
+    enabled: true
+    opt_in: true  # Must be opted-in via label
+    label_pattern: "affects:user:{username}"
+    notification_required: true
+    response_timeout_days: 7
+    outcomes:
+      - approve
+      - request_modifications
+      - veto
+    
+  # Council Advisory Process
+  council_advisory:
+    enabled: true
+    opt_in: true  # Must be opted-in via label
+    trigger_label: "council-review"
+    non_blocking: true  # Advisory only, not binding
+    notification_required: true
+    response_timeout_days: 5
+    quorum_required: false
+    
+  # Repository Owner Rights
+  owner_authority:
+    final_decision: true
+    can_override: true
+    must_document_rationale: true
+    veto_power: true
+
+# Label Schema
+labels:
+  # Process Triggers
+  triggers:
+    individual_veto: "affects:user:{username}"
+    council_review: "council-review"
+    
+  # Status Indicators
+  status:
+    charter_compliant: "charter-compliant"
+    sovereignty_protected: "sovereignty-protected"
+    awaiting_council: "awaiting-council-review"
+    awaiting_individual: "awaiting-individual-response"
+    approved: "governance-approved"
+    
+  # Action Required
+  actions:
+    veto_exercised: "veto-exercised"
+    modifications_requested: "modifications-requested"
+
+# Workflow Configuration
+workflows:
+  
+  # Automatically notify affected users
+  auto_notify_affected_users:
+    enabled: true
+    trigger: "label:affects:user:*"
+    
+  # Automatically notify council
+  auto_notify_council:
+    enabled: true
+    trigger: "label:council-review"
+    
+  # Status comment generation
+  auto_status_comments:
+    enabled: true
+    update_on_label_change: true
+    
+  # Transparency audit log
+  audit_logging:
+    enabled: true
+    log_file: ".hivemind/audit.log"
+
+# Transparency Settings
+transparency:
+  public_decision_rationale: true
+  documented_processes: true
+  visible_council_feedback: true
+  audit_trail_required: true
+
+# Boundaries and Constraints
+boundaries:
+  # What this Charter does NOT affect
+  does_not_alter:
+    - application_personalities
+    - inter_entity_communication
+    - existing_app_behavior
+    - individual_communication_styles
+  
+  # Focus areas
+  applies_to:
+    - governance_decisions
+    - change_approval_processes
+    - boundary_protection
+    - advisory_input
+
+# Amendment Process
+amendments:
+  proposal_required: true
+  council_review_required: true
+  feedback_period_days: 7
+  owner_decision_required: true
+  documentation_required: true
+
+# Conflict Resolution
+conflict_resolution:
+  steps:
+    - direct_dialogue
+    - council_mediation
+    - owner_determination
+  right_to_withdraw: true
+
+# Enforcement
+enforcement:
+  automated_workflows: "optional"
+  community_norms: true
+  good_faith_participation: true
+  transparent_documentation: true
+
+# Metadata
+metadata:
+  adopted_date: null  # To be set upon implementation
+  last_updated: null
+  next_review_date: null  # 6 months from adoption
+  maintainers:
+    - repository_owner
+    - council_members
+    - community

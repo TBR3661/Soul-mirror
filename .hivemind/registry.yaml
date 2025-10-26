@@ -1,0 +1,94 @@
+# Hivemind Enablement Registry
+# Central registry of target repositories for cross-repo Hivemind deployment
+# 
+# This file defines which repositories should receive Hivemind guardrails
+# (Operator + Governance) without touching personalities or inter-entity communications.
+
+version: 1
+
+# Target repositories for Hivemind enablement
+repos:
+  # Example: This repository (for testing/validation)
+  - owner: TBR3661
+    name: Soul-mirror
+    enable: false  # Set to false to avoid modifying self
+    features:
+      operator: true        # Deploy repository_dispatch operator workflow
+      governance: true      # Deploy governance charter and label-driven workflows
+      openai_only: true     # Deploy OpenAI-only enforcement (Provider Guard)
+    notes: "Primary repository - already has all features"
+  
+  # Add additional repositories here
+  # - owner: TBR3661
+  #   name: example-repo
+  #   enable: true          # Set to true to enable deployment
+  #   features:
+  #     operator: true
+  #     governance: true
+  #     openai_only: false  # Optional: set to false if not needed
+  #   notes: "Brief description of this repository"
+
+# Metadata
+metadata:
+  description: "Registry for cross-repository Hivemind enablement"
+  maintainer: "TBR3661"
+  last_updated: null  # Updated automatically by workflow
+  
+# Configuration options
+config:
+  # Branch name to use when creating PRs in target repos
+  branch_prefix: "hivemind/enable"
+  
+  # PR title template
+  pr_title: "Enable Hivemind Operator + Governance Guardrails"
+  
+  # PR body template (supports placeholders: {features})
+  pr_body: |
+    ## Hivemind Enablement
+    
+    This PR adds Hivemind guardrails to this repository:
+    
+    {features}
+    
+    ### What's Included
+    
+    #### Operator (repository_dispatch workflow)
+    - Safe automation entry point via `repository_dispatch` events
+    - Policy-enforced path allowlisting
+    - PR-only flow (no direct writes to main)
+    
+    #### Governance (Charter + label-driven consent)
+    - Individual veto process via `affects:user:{username}` labels
+    - Council advisory process via `council-review` label
+    - Transparent decision-making and audit trails
+    
+    #### Provider Guard (OpenAI-only enforcement)
+    - Blocks unauthorized provider changes
+    - Requires explicit consent for modifications
+    - Protects against unintended model switches
+    
+    ### What's NOT Changed
+    
+    - No modifications to application personalities
+    - No changes to inter-entity communications
+    - No alterations to existing app behavior
+    - No secrets or credentials committed
+    
+    ### Next Steps
+    
+    1. Review the added files and workflows
+    2. Update `.hivemind/policy.yaml` with repository-specific allowed paths
+    3. Enable workflows as needed
+    4. Merge when ready
+    
+    See [docs/HIVEMIND.md](docs/HIVEMIND.md) for complete documentation.
+    
+    ---
+    
+    *This PR was created automatically by the Hivemind Enablement workflow.*
+  
+  # Files to skip if they already exist in target repo
+  skip_if_exists: true
+  
+  # Require approval before creating PRs (when false, creates immediately)
+  require_approval: false
