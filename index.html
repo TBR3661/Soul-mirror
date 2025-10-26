@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hivemind - Lumen Sanctum</title>
+    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#03072c" />
+    <!-- iOS PWA helpers -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --color-bg-deep: #03072c;
+        --color-bg-mid: #1a1a3d;
+        --color-bg-light: #302b63;
+        --color-primary: #ddcabb;
+        --color-secondary: #c9a989;
+        --color-accent: #a04f4f;
+        --color-highlight: #6e94b3;
+        --color-text-main: #e8e6e3;
+        --color-text-muted: #b0a99a;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-900" style="background-color: var(--color-bg-deep);">
+    <div id="root"></div>
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
+</html>
