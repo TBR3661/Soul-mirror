@@ -72,6 +72,7 @@ npm run deploy
 
 Then share the URL with beta testers to install on phones.
 
+copilot/add-provider-guard-ci
 ## Project Structure
 
 ```
@@ -109,3 +110,8 @@ All provider-related changes require explicit consent from @TBR3661. See the Pro
 ## License
 
 See LICENSE file for details.
+=======
+## Governance
+
+This repository follows the [HiveMind Charter](docs/HIVEMIND_CHARTER.md) for collaborative governance. See the [Governance Guide](docs/HIVEMIND_GOVERNANCE.md) for practical usage instructions.
+main
