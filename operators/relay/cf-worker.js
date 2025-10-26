@@ -11,6 +11,8 @@
  */
 
 // CORS headers for all responses
+// Note: In production, restrict Access-Control-Allow-Origin to specific ChatGPT domains
+// For now, using '*' to allow testing from various sources
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -77,10 +79,10 @@ export default {
       }
     } catch (error) {
       console.error('Error handling request:', error);
+      // Don't expose internal error details in production
       return jsonResponse({ 
         success: false, 
-        error: 'Internal server error',
-        details: error.message 
+        error: 'Internal server error'
       }, 500);
     }
   },
@@ -111,16 +113,17 @@ function authenticateRequest(request, env) {
 
 /**
  * Serve OpenAPI schema
+ * Note: In production, you may want to inline the schema JSON or fetch from a CDN
+ * For now, returns endpoint information for manual schema import
  */
 function serveOpenAPISchema(request) {
-  // This would typically read from a file or include the schema inline
-  // For now, we'll return a basic response pointing to the schema location
   const url = new URL(request.url);
   const baseUrl = `${url.protocol}//${url.host}`;
   
   return jsonResponse({
-    message: 'OpenAPI schema available',
-    schema_url: 'See cf-openapi.json in the repository',
+    message: 'OpenAPI schema available in repository',
+    info: 'Import cf-openapi.json into ChatGPT Actions manually',
+    schema_url: 'https://github.com/TBR3661/Soul-mirror/blob/main/operators/relay/cf-openapi.json',
     endpoints: {
       dispatch: `${baseUrl}/chatgpt/dispatch`,
       list_prs: `${baseUrl}/chatgpt/prs/list`,

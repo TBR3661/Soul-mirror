@@ -87,7 +87,7 @@ Create or update `wrangler.toml`:
 ```toml
 name = "kora-connector"
 main = "cf-worker.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-10-01"
 
 [env.production]
 name = "kora-connector"
@@ -350,6 +350,23 @@ wrangler tail
 3. **Monitor usage**: Check Cloudflare Worker logs and GitHub audit log
 4. **Limit GPT sharing**: Keep custom GPT private or share only with trusted team
 5. **Review actions**: Periodically review what actions Kora has taken
+6. **Restrict CORS (Production)**: Update `CORS_HEADERS` in `cf-worker.js` to restrict `Access-Control-Allow-Origin` to specific ChatGPT domains instead of wildcard `*`
+
+### Hardening CORS for Production
+
+Edit `cf-worker.js` and update the CORS configuration:
+
+```javascript
+// Production CORS - restrict to ChatGPT domains
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': 'https://chat.openai.com',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Max-Age': '86400',
+};
+```
+
+Then redeploy: `wrangler deploy`
 
 ## Maintenance
 
