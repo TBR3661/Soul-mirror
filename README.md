@@ -101,6 +101,18 @@ gh workflow run hivemind-foreman.yml
 All tasks are disabled by default. Edit `.hivemind/plan.yaml` and set `enabled: true` for specific tasks to activate them.
 
 **Security**: No secrets in code. All credentials stored in GitHub Secrets. PR-only flow with code review required.
+
+### Cross-Repo Enablement
+
+The Hivemind Enablement workflow allows you to safely deploy Hivemind guardrails to other repositories you own. See [docs/HIVEMIND_ENABLEMENT.md](docs/HIVEMIND_ENABLEMENT.md) for complete documentation.
+
+To enable Hivemind in other repositories:
+```bash
+# Configure target repos in .hivemind/registry.yaml
+# Add CROSS_REPO_TOKEN secret with repo scope
+# Then run:
+gh workflow run hivemind-enablement.yml -f dry_run=true
+```
 =======
 copilot/add-provider-guard-ci
 ## Project Structure
