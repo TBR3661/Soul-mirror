@@ -159,7 +159,7 @@ execution:
   # Automatically create PRs for completed tasks
   auto_create_pr: true
   
-  # Target repository (change to your repository: "OWNER/REPO")
+  # Target repository (current: TBR3661/Soul-mirror, change if deploying elsewhere)
   target_repository: "TBR3661/Soul-mirror"
   
   # Branch naming pattern
