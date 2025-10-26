@@ -1,0 +1,335 @@
+name: Hivemind Enablement - Cross-Repo Seeding
+
+# Deploy Hivemind Operator + Governance guardrails to other repositories
+# without touching personalities or inter-entity communications
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run mode (no actual PR creation)'
+        required: false
+        type: boolean
+        default: true
+      target_repo:
+        description: 'Specific repo to target (owner/name) - leave empty for all enabled repos'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  seed-repositories:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: |
+          npm install js-yaml @octokit/rest
+      
+      - name: Load and validate registry
+        id: load_registry
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+            
+            console.log('📋 Loading registry from .hivemind/registry.yaml');
+            
+            let registry;
+            try {
+              const registryContent = fs.readFileSync('.hivemind/registry.yaml', 'utf8');
+              registry = yaml.load(registryContent);
+            } catch (error) {
+              core.setFailed(`Failed to load registry: ${error.message}`);
+              return;
+            }
+            
+            console.log(`✅ Loaded registry version ${registry.version}`);
+            console.log(`📦 Total repositories: ${registry.repos.length}`);
+            
+            // Filter enabled repositories
+            const enabledRepos = registry.repos.filter(repo => repo.enable === true);
+            console.log(`✓ Enabled repositories: ${enabledRepos.length}`);
+            
+            // Filter by target if specified
+            const targetRepo = '${{ github.event.inputs.target_repo }}';
+            let targetRepos = enabledRepos;
+            
+            if (targetRepo) {
+              const [owner, name] = targetRepo.split('/');
+              targetRepos = enabledRepos.filter(
+                repo => repo.owner === owner && repo.name === name
+              );
+              
+              if (targetRepos.length === 0) {
+                core.setFailed(`Target repository not found or not enabled: ${targetRepo}`);
+                return;
+              }
+              
+              console.log(`🎯 Targeting specific repository: ${targetRepo}`);
+            }
+            
+            core.setOutput('registry', JSON.stringify(registry));
+            core.setOutput('target_repos', JSON.stringify(targetRepos));
+            core.setOutput('dry_run', '${{ github.event.inputs.dry_run }}' === 'true' ? 'true' : 'false');
+      
+      - name: Prepare templates
+        id: prepare_templates
+        run: |
+          echo "📦 Preparing templates for deployment"
+          
+          # List available templates
+          echo "Available workflow templates:"
+          ls -la .hivemind/templates/workflows/
+          
+          echo "Available governance templates:"
+          ls -la .hivemind/templates/governance/
+      
+      - name: Deploy to target repositories
+        id: deploy
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+            const { Octokit } = require('@octokit/rest');
+            
+            // Initialize Octokit with cross-repo token
+            const crossRepoToken = process.env.CROSS_REPO_TOKEN;
+            if (!crossRepoToken) {
+              core.setFailed('CROSS_REPO_TOKEN secret not found. Please configure it with repo scope.');
+              return;
+            }
+            
+            const octokit = new Octokit({ auth: crossRepoToken });
+            
+            const registry = JSON.parse('${{ steps.load_registry.outputs.registry }}');
+            const targetRepos = JSON.parse('${{ steps.load_registry.outputs.target_repos }}');
+            const dryRun = '${{ steps.load_registry.outputs.dry_run }}' === 'true';
+            
+            console.log(`🚀 Deploying to ${targetRepos.length} repositories`);
+            console.log(`🔍 Dry run mode: ${dryRun}`);
+            
+            const results = [];
+            
+            for (const repo of targetRepos) {
+              console.log(`\n📦 Processing: ${repo.owner}/${repo.name}`);
+              console.log(`   Features: ${JSON.stringify(repo.features)}`);
+              
+              try {
+                // Get default branch
+                const { data: repoInfo } = await octokit.rest.repos.get({
+                  owner: repo.owner,
+                  repo: repo.name
+                });
+                
+                const defaultBranch = repoInfo.default_branch;
+                console.log(`   Default branch: ${defaultBranch}`);
+                
+                // Get latest commit SHA
+                const { data: ref } = await octokit.rest.git.getRef({
+                  owner: repo.owner,
+                  repo: repo.name,
+                  ref: `heads/${defaultBranch}`
+                });
+                
+                const baseSha = ref.object.sha;
+                
+                // Create branch name
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                const branchName = `${registry.config.branch_prefix}-${timestamp}`;
+                
+                if (dryRun) {
+                  console.log(`   [DRY RUN] Would create branch: ${branchName}`);
+                  console.log(`   [DRY RUN] Would add files based on features`);
+                  
+                  results.push({
+                    repo: `${repo.owner}/${repo.name}`,
+                    status: 'dry_run',
+                    branch: branchName,
+                    features: repo.features
+                  });
+                  continue;
+                }
+                
+                // Create new branch
+                await octokit.rest.git.createRef({
+                  owner: repo.owner,
+                  repo: repo.name,
+                  ref: `refs/heads/${branchName}`,
+                  sha: baseSha
+                });
+                
+                console.log(`   ✅ Created branch: ${branchName}`);
+                
+                // Prepare files to add based on features
+                const filesToAdd = [];
+                
+                // Add operator workflow if enabled
+                if (repo.features.operator) {
+                  const operatorContent = fs.readFileSync('.hivemind/templates/workflows/hivemind-operator.yml', 'utf8');
+                  filesToAdd.push({
+                    path: '.github/workflows/hivemind-operator.yml',
+                    content: operatorContent
+                  });
+                }
+                
+                // Add governance files if enabled
+                if (repo.features.governance) {
+                  const charterContent = fs.readFileSync('.hivemind/templates/governance/charter.yaml', 'utf8');
+                  const policyContent = fs.readFileSync('.hivemind/templates/governance/policy.yaml', 'utf8');
+                  const governanceWorkflowContent = fs.readFileSync('.hivemind/templates/workflows/governance-check.yml', 'utf8');
+                  
+                  filesToAdd.push({
+                    path: '.hivemind/charter.yaml',
+                    content: charterContent
+                  });
+                  filesToAdd.push({
+                    path: '.hivemind/policy.yaml',
+                    content: policyContent
+                  });
+                  filesToAdd.push({
+                    path: '.github/workflows/governance-check.yml',
+                    content: governanceWorkflowContent
+                  });
+                }
+                
+                // Add provider guard if enabled
+                if (repo.features.openai_only) {
+                  const providerGuardContent = fs.readFileSync('.hivemind/templates/workflows/provider-guard.yml', 'utf8');
+                  filesToAdd.push({
+                    path: '.github/workflows/provider-guard.yml',
+                    content: providerGuardContent
+                  });
+                }
+                
+                console.log(`   📝 Adding ${filesToAdd.length} files`);
+                
+                // Check if files exist and skip if configured
+                const filesToCreate = [];
+                for (const file of filesToAdd) {
+                  if (registry.config.skip_if_exists) {
+                    try {
+                      await octokit.rest.repos.getContent({
+                        owner: repo.owner,
+                        repo: repo.name,
+                        path: file.path,
+                        ref: defaultBranch
+                      });
+                      console.log(`   ⏭️  Skipping existing file: ${file.path}`);
+                      continue;
+                    } catch (error) {
+                      if (error.status !== 404) {
+                        throw error;
+                      }
+                      // File doesn't exist, proceed with creation
+                    }
+                  }
+                  filesToCreate.push(file);
+                }
+                
+                // Create commits for each file
+                for (const file of filesToCreate) {
+                  const contentBase64 = Buffer.from(file.content).toString('base64');
+                  
+                  await octokit.rest.repos.createOrUpdateFileContents({
+                    owner: repo.owner,
+                    repo: repo.name,
+                    path: file.path,
+                    message: `Add Hivemind ${file.path}`,
+                    content: contentBase64,
+                    branch: branchName
+                  });
+                  
+                  console.log(`   ✅ Added: ${file.path}`);
+                }
+                
+                // Build features list for PR body
+                const featuresList = [];
+                if (repo.features.operator) {
+                  featuresList.push('- ✅ **Operator**: repository_dispatch workflow for safe automation');
+                }
+                if (repo.features.governance) {
+                  featuresList.push('- ✅ **Governance**: Charter-based consent and veto processes');
+                }
+                if (repo.features.openai_only) {
+                  featuresList.push('- ✅ **Provider Guard**: OpenAI-only enforcement with consent gates');
+                }
+                
+                const prBody = registry.config.pr_body.replace('{features}', featuresList.join('\n'));
+                
+                // Create pull request
+                const { data: pr } = await octokit.rest.pulls.create({
+                  owner: repo.owner,
+                  repo: repo.name,
+                  title: registry.config.pr_title,
+                  head: branchName,
+                  base: defaultBranch,
+                  body: prBody
+                });
+                
+                console.log(`   ✅ Created PR: #${pr.number}`);
+                console.log(`   🔗 URL: ${pr.html_url}`);
+                
+                results.push({
+                  repo: `${repo.owner}/${repo.name}`,
+                  status: 'success',
+                  branch: branchName,
+                  pr_number: pr.number,
+                  pr_url: pr.html_url,
+                  features: repo.features,
+                  files_added: filesToCreate.length
+                });
+                
+              } catch (error) {
+                console.error(`   ❌ Error: ${error.message}`);
+                results.push({
+                  repo: `${repo.owner}/${repo.name}`,
+                  status: 'error',
+                  error: error.message,
+                  features: repo.features
+                });
+              }
+            }
+            
+            console.log(`\n✅ Deployment complete`);
+            console.log(`📊 Results: ${JSON.stringify(results, null, 2)}`);
+            
+            // Create summary
+            const summaryRows = results.map(r => {
+              const statusEmoji = r.status === 'success' ? '✅' : 
+                                 r.status === 'dry_run' ? '🔍' : '❌';
+              const prLink = r.pr_url ? `[#${r.pr_number}](${r.pr_url})` : 'N/A';
+              return [r.repo, statusEmoji + ' ' + r.status, prLink];
+            });
+            
+            await core.summary
+              .addHeading('🌐 Hivemind Cross-Repo Enablement')
+              .addRaw(`**Mode**: ${dryRun ? '🔍 Dry Run' : '🚀 Live Deployment'}`)
+              .addRaw(`\n**Repositories Processed**: ${results.length}`)
+              .addTable([
+                [{data: 'Repository', header: true}, {data: 'Status', header: true}, {data: 'PR', header: true}],
+                ...summaryRows
+              ])
+              .write();
+            
+            core.setOutput('results', JSON.stringify(results));
+        env:
+          CROSS_REPO_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+      
+      - name: Report completion
+        if: always()
+        run: |
+          echo "🎉 Hivemind Enablement workflow complete"
+          echo "Check job summary for detailed results"

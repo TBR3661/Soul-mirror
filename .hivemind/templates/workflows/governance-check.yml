@@ -1,0 +1,289 @@
+name: Governance Check
+
+# Implements Charter-based governance with individual veto and council advisory processes
+# Triggered on PR events to enforce consent and transparency requirements
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-governance:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: |
+          npm install js-yaml
+      
+      - name: Load charter configuration
+        id: charter
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+            
+            let charter;
+            try {
+              const charterContent = fs.readFileSync('.hivemind/charter.yaml', 'utf8');
+              charter = yaml.load(charterContent);
+            } catch (error) {
+              console.log('⚠️  Charter file not found, governance checks disabled');
+              core.setOutput('enabled', 'false');
+              return;
+            }
+            
+            core.setOutput('enabled', 'true');
+            core.setOutput('charter', JSON.stringify(charter));
+      
+      - name: Check individual veto labels
+        id: check_veto
+        if: steps.charter.outputs.enabled == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const charter = JSON.parse('${{ steps.charter.outputs.charter }}');
+            
+            if (!charter.governance?.individual_veto?.enabled) {
+              console.log('Individual veto not enabled');
+              core.setOutput('veto_required', 'false');
+              return;
+            }
+            
+            // Get PR labels
+            const labels = context.payload.pull_request?.labels || [];
+            
+            // Find affects:user:* labels
+            const affectedUsers = labels
+              .map(l => l.name)
+              .filter(name => name.startsWith('affects:user:'))
+              .map(name => name.replace('affects:user:', ''));
+            
+            if (affectedUsers.length === 0) {
+              console.log('No affected users labeled');
+              core.setOutput('veto_required', 'false');
+              core.setOutput('affected_users', '[]');
+              return;
+            }
+            
+            console.log(`Found affected users: ${affectedUsers.join(', ')}`);
+            core.setOutput('veto_required', 'true');
+            core.setOutput('affected_users', JSON.stringify(affectedUsers));
+            
+            // Check for approvals/consent from affected users
+            const reviews = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const consented = [];
+            const vetoed = [];
+            
+            for (const user of affectedUsers) {
+              // Check for approval review
+              const hasApproval = reviews.data.some(
+                r => r.user.login === user && r.state === 'APPROVED'
+              );
+              
+              // Check for consent comment
+              const hasConsent = comments.data.some(
+                c => c.user.login === user && 
+                     c.body.toLowerCase().includes('consent')
+              );
+              
+              // Check for veto comment
+              const hasVeto = comments.data.some(
+                c => c.user.login === user && 
+                     c.body.toLowerCase().includes('veto')
+              );
+              
+              if (hasVeto) {
+                vetoed.push(user);
+              } else if (hasApproval || hasConsent) {
+                consented.push(user);
+              }
+            }
+            
+            core.setOutput('consented_users', JSON.stringify(consented));
+            core.setOutput('vetoed_users', JSON.stringify(vetoed));
+            
+            const allConsented = affectedUsers.every(u => consented.includes(u));
+            const anyVetoed = vetoed.length > 0;
+            
+            core.setOutput('all_consented', allConsented.toString());
+            core.setOutput('any_vetoed', anyVetoed.toString());
+      
+      - name: Check council advisory
+        id: check_council
+        if: steps.charter.outputs.enabled == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const charter = JSON.parse('${{ steps.charter.outputs.charter }}');
+            
+            if (!charter.governance?.council_advisory?.enabled) {
+              console.log('Council advisory not enabled');
+              core.setOutput('council_required', 'false');
+              return;
+            }
+            
+            // Get PR labels
+            const labels = context.payload.pull_request?.labels || [];
+            
+            const hasCouncilLabel = labels.some(
+              l => l.name === (charter.governance.council_advisory.trigger_label || 'council-review')
+            );
+            
+            if (!hasCouncilLabel) {
+              console.log('Council review not requested');
+              core.setOutput('council_required', 'false');
+              return;
+            }
+            
+            console.log('Council review requested');
+            core.setOutput('council_required', 'true');
+            
+            // Council is advisory only (non_blocking: true)
+            core.setOutput('council_blocking', 'false');
+      
+      - name: Post or update governance status
+        if: steps.charter.outputs.enabled == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const vetoRequired = '${{ steps.check_veto.outputs.veto_required }}' === 'true';
+            const councilRequired = '${{ steps.check_council.outputs.council_required }}' === 'true';
+            
+            if (!vetoRequired && !councilRequired) {
+              console.log('No governance checks required');
+              return;
+            }
+            
+            let body = '## 🛡️ Governance Status\n\n';
+            
+            if (vetoRequired) {
+              const affectedUsers = JSON.parse('${{ steps.check_veto.outputs.affected_users }}');
+              const consentedUsers = JSON.parse('${{ steps.check_veto.outputs.consented_users }}' || '[]');
+              const vetoedUsers = JSON.parse('${{ steps.check_veto.outputs.vetoed_users }}' || '[]');
+              const allConsented = '${{ steps.check_veto.outputs.all_consented }}' === 'true';
+              const anyVetoed = '${{ steps.check_veto.outputs.any_vetoed }}' === 'true';
+              
+              body += '### Individual Veto Process\n\n';
+              body += 'This PR affects the following users:\n\n';
+              
+              for (const user of affectedUsers) {
+                if (vetoedUsers.includes(user)) {
+                  body += `- ❌ @${user} - **VETOED**\n`;
+                } else if (consentedUsers.includes(user)) {
+                  body += `- ✅ @${user} - Consented\n`;
+                } else {
+                  body += `- ⏳ @${user} - Awaiting response\n`;
+                }
+              }
+              
+              body += '\n';
+              
+              if (anyVetoed) {
+                body += '**Status**: ❌ **VETO EXERCISED** - This PR cannot proceed without addressing concerns.\n\n';
+              } else if (allConsented) {
+                body += '**Status**: ✅ **ALL CONSENTS GRANTED** - This PR may proceed.\n\n';
+              } else {
+                body += '**Status**: ⏳ **AWAITING CONSENT** - Waiting for affected users to respond.\n\n';
+                body += 'To grant consent:\n';
+                body += '- Submit an APPROVE review, OR\n';
+                body += '- Comment with the word "consent"\n\n';
+                body += 'To veto:\n';
+                body += '- Comment with the word "veto" and explain your concerns\n\n';
+              }
+            }
+            
+            if (councilRequired) {
+              body += '### Council Advisory Process\n\n';
+              body += '**Status**: ⏳ **COUNCIL REVIEW REQUESTED**\n\n';
+              body += 'This PR has been flagged for council advisory review.\n';
+              body += 'Council feedback is **non-blocking** and advisory only.\n\n';
+            }
+            
+            body += '---\n';
+            body += '*This check enforces the [HiveMind Charter](../blob/main/docs/HIVEMIND_CHARTER.md) governance processes.*';
+            
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const existingComment = comments.data.find(
+              comment => comment.user.login === 'github-actions[bot]' && 
+                         comment.body.includes('Governance Status')
+            );
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
+      
+      - name: Fail if veto exercised
+        if: steps.check_veto.outputs.any_vetoed == 'true'
+        run: |
+          echo "❌ Veto exercised by affected user(s)"
+          echo "This PR cannot proceed until concerns are addressed"
+          exit 1
+      
+      - name: Warn if consent pending
+        if: |
+          steps.check_veto.outputs.veto_required == 'true' && 
+          steps.check_veto.outputs.all_consented != 'true' &&
+          steps.check_veto.outputs.any_vetoed != 'true'
+        run: |
+          echo "⏳ Awaiting consent from affected users"
+          echo "This is a warning - PR can proceed with repository owner approval"
+      
+      - name: Success
+        if: |
+          steps.charter.outputs.enabled != 'true' ||
+          (steps.check_veto.outputs.veto_required != 'true' && steps.check_council.outputs.council_required != 'true') ||
+          (steps.check_veto.outputs.all_consented == 'true' && steps.check_veto.outputs.any_vetoed != 'true')
+        run: |
+          echo "✅ Governance checks passed"

@@ -1,0 +1,237 @@
+name: Hivemind Operator
+
+# Safe automation entry point via repository_dispatch
+# Creates PRs based on validated tasks from Foreman orchestrator
+
+on:
+  repository_dispatch:
+    types: [hivemind-task]
+  
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: 'Task ID to execute'
+        required: true
+      entity:
+        description: 'Entity name (e.g., documenter, builder)'
+        required: true
+      target_paths:
+        description: 'Target paths (comma-separated)'
+        required: true
+      description:
+        description: 'Task description'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  execute-task:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: |
+          npm install js-yaml
+      
+      - name: Parse task payload
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get task details from either repository_dispatch or manual input
+            const taskId = context.payload.client_payload?.task_id || 
+                          context.payload.inputs?.task_id;
+            const entity = context.payload.client_payload?.entity || 
+                          context.payload.inputs?.entity;
+            const targetPathsStr = context.payload.client_payload?.target_paths || 
+                                   context.payload.inputs?.target_paths;
+            const description = context.payload.client_payload?.description || 
+                               context.payload.inputs?.description;
+            
+            const targetPaths = Array.isArray(targetPathsStr) 
+              ? targetPathsStr 
+              : targetPathsStr.split(',').map(p => p.trim());
+            
+            console.log(`📋 Task: ${taskId}`);
+            console.log(`🤖 Entity: ${entity}`);
+            console.log(`📂 Target paths: ${targetPaths.join(', ')}`);
+            console.log(`📝 Description: ${description}`);
+            
+            core.setOutput('task_id', taskId);
+            core.setOutput('entity', entity);
+            core.setOutput('target_paths', JSON.stringify(targetPaths));
+            core.setOutput('description', description);
+      
+      - name: Validate against policy
+        id: validate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+            
+            // Load policy
+            let policy;
+            try {
+              const policyContent = fs.readFileSync('.hivemind/policy.yaml', 'utf8');
+              policy = yaml.load(policyContent);
+            } catch (error) {
+              console.log('⚠️  No policy file found, proceeding with caution');
+              core.setOutput('valid', 'true');
+              return;
+            }
+            
+            const targetPaths = JSON.parse('${{ steps.parse.outputs.target_paths }}');
+            
+            // Helper function to check if path is allowed
+            function isPathAllowed(path, policy) {
+              // Check denied patterns first
+              for (const deniedPattern of policy.global?.denied_patterns || []) {
+                const regex = new RegExp(deniedPattern.replace('*', '.*'));
+                if (regex.test(path)) {
+                  return false;
+                }
+              }
+              
+              // Check denied paths
+              for (const deniedPath of policy.global?.denied_paths || []) {
+                if (path.startsWith(deniedPath.replace('**/', ''))) {
+                  return false;
+                }
+              }
+              
+              // Check allowed paths
+              for (const allowedPath of policy.global?.allowed_paths || []) {
+                if (path.startsWith(allowedPath)) {
+                  return true;
+                }
+              }
+              
+              // Check allowed patterns
+              for (const allowedPattern of policy.global?.allowed_patterns || []) {
+                const regex = new RegExp(allowedPattern.replace('*', '.*'));
+                if (regex.test(path)) {
+                  return true;
+                }
+              }
+              
+              return false;
+            }
+            
+            // Validate each target path
+            const invalidPaths = [];
+            for (const path of targetPaths) {
+              if (!isPathAllowed(path, policy)) {
+                invalidPaths.push(path);
+              }
+            }
+            
+            if (invalidPaths.length > 0) {
+              console.log(`❌ Invalid paths detected: ${invalidPaths.join(', ')}`);
+              core.setFailed(`Policy violation: paths not allowed: ${invalidPaths.join(', ')}`);
+              core.setOutput('valid', 'false');
+            } else {
+              console.log('✅ All paths validated');
+              core.setOutput('valid', 'true');
+            }
+      
+      - name: Create branch and PR
+        if: steps.validate.outputs.valid == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const taskId = '${{ steps.parse.outputs.task_id }}';
+            const entity = '${{ steps.parse.outputs.entity }}';
+            const description = '${{ steps.parse.outputs.description }}';
+            
+            const branchName = `ops/${entity}/${taskId}`;
+            
+            console.log(`🌿 Creating branch: ${branchName}`);
+            
+            // Get the current commit SHA
+            const { data: ref } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'heads/main'
+            });
+            
+            const baseSha = ref.object.sha;
+            
+            // Create new branch
+            try {
+              await github.rest.git.createRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `refs/heads/${branchName}`,
+                sha: baseSha
+              });
+              console.log(`✅ Branch created: ${branchName}`);
+            } catch (error) {
+              if (error.status === 422) {
+                console.log(`⚠️  Branch already exists: ${branchName}`);
+              } else {
+                throw error;
+              }
+            }
+            
+            // Create placeholder PR (actual changes would be made by the entity's agent)
+            const prBody = `## Hivemind Task: ${taskId}
+            
+            **Entity**: ${entity}
+            **Description**: ${description}
+            
+            ### Changes
+            
+            This PR implements the task as defined in the Hivemind plan.
+            
+            Target paths:
+            ${JSON.parse('${{ steps.parse.outputs.target_paths }}').map(p => `- \`${p}\``).join('\n')}
+            
+            ---
+            
+            *This PR was created automatically by the Hivemind Operator.*
+            *Please review changes carefully before merging.*`;
+            
+            try {
+              const { data: pr } = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[${entity}] ${description}`,
+                head: branchName,
+                base: 'main',
+                body: prBody
+              });
+              
+              console.log(`✅ PR created: #${pr.number}`);
+              console.log(`🔗 URL: ${pr.html_url}`);
+              
+              await core.summary
+                .addHeading('🤖 Hivemind Operator')
+                .addRaw(`**Task**: ${taskId}`)
+                .addRaw(`\n**Entity**: ${entity}`)
+                .addRaw(`\n**PR**: [#${pr.number}](${pr.html_url})`)
+                .write();
+            } catch (error) {
+              if (error.status === 422 && error.message.includes('No commits')) {
+                console.log('⚠️  No changes to commit - PR not created');
+              } else {
+                throw error;
+              }
+            }
+      
+      - name: Report completion
+        if: always()
+        run: |
+          echo "🎉 Hivemind Operator execution complete"
