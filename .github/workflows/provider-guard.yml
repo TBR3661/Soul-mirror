@@ -1,0 +1,192 @@
+name: Provider Guard - OpenAI-Only Enforcement
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-provider-changes:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Checkout base branch
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+      
+      - name: Check for provider changes
+        id: check
+        run: |
+          echo "Checking for provider-related changes..."
+          
+          # Initialize flags
+          PROVIDER_CHANGE=false
+          VIOLATIONS=""
+          
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD)
+          
+          # Check .env.example for default provider change
+          if echo "$CHANGED_FILES" | grep -q ".env.example"; then
+            if git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- .env.example | grep -E "^\+.*VITE_DEFAULT_PROVIDER" | grep -v "VITE_DEFAULT_PROVIDER=openai"; then
+              PROVIDER_CHANGE=true
+              VIOLATIONS="${VIOLATIONS}\n- Changed default provider away from 'openai' in .env.example"
+            fi
+            
+            # Check for enabling other providers
+            if git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- .env.example | grep -E "^\+.*VITE_(GEMINI|ANTHROPIC|ENTITY_PROVIDER).*=.*[^#]" | grep -v "^#"; then
+              PROVIDER_CHANGE=true
+              VIOLATIONS="${VIOLATIONS}\n- Attempted to enable non-OpenAI providers in .env.example"
+            fi
+          fi
+          
+          # Check for new provider adapters
+          NEW_PROVIDERS=$(echo "$CHANGED_FILES" | grep -E "src/ai/providers/.*Client\.ts$" | grep -v "openaiClient.ts" || true)
+          if [ -n "$NEW_PROVIDERS" ]; then
+            PROVIDER_CHANGE=true
+            VIOLATIONS="${VIOLATIONS}\n- Added new provider adapter(s): ${NEW_PROVIDERS}"
+          fi
+          
+          # Check for changes to existing non-OpenAI providers that enable them
+          if echo "$CHANGED_FILES" | grep -qE "(geminiService|anthropic|claude)"; then
+            PROVIDER_CHANGE=true
+            VIOLATIONS="${VIOLATIONS}\n- Modified existing non-OpenAI provider implementations"
+          fi
+          
+          # Output results
+          echo "provider_change=${PROVIDER_CHANGE}" >> $GITHUB_OUTPUT
+          echo "violations<<EOF" >> $GITHUB_OUTPUT
+          echo -e "${VIOLATIONS}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Check for consent
+        id: consent
+        if: steps.check.outputs.provider_change == 'true'
+        run: |
+          echo "Provider changes detected, checking for consent..."
+          
+          HAS_CONSENT=false
+          
+          # Check for label
+          LABELS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "${{ github.event.pull_request.url }}" | jq -r '.labels[].name')
+          
+          if echo "$LABELS" | grep -q "affects:user:TBR3661"; then
+            echo "Found affects:user:TBR3661 label"
+            
+            # Check for approval from TBR3661
+            REVIEWS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "${{ github.event.pull_request.url }}/reviews")
+            
+            if echo "$REVIEWS" | jq -e '.[] | select(.user.login == "TBR3661" and .state == "APPROVED")' > /dev/null; then
+              echo "Found APPROVE review from TBR3661"
+              HAS_CONSENT=true
+            fi
+            
+            # Check for consent comment from TBR3661
+            COMMENTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "${{ github.event.pull_request.url }}/comments")
+            
+            if echo "$COMMENTS" | jq -e '.[] | select(.user.login == "TBR3661" and (.body | test("consent"; "i")))' > /dev/null; then
+              echo "Found consent comment from TBR3661"
+              HAS_CONSENT=true
+            fi
+          fi
+          
+          echo "has_consent=${HAS_CONSENT}" >> $GITHUB_OUTPUT
+      
+      - name: Post or update status comment
+        if: steps.check.outputs.provider_change == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const violations = `${{ steps.check.outputs.violations }}`;
+            const hasConsent = '${{ steps.consent.outputs.has_consent }}' === 'true';
+            
+            const body = `## 🔒 Provider Guard - OpenAI-Only Enforcement
+            
+            This PR contains changes to provider configuration that require explicit consent.
+            
+            ### Detected Changes:
+            ${violations}
+            
+            ### Consent Status: ${hasConsent ? '✅ GRANTED' : '❌ REQUIRED'}
+            
+            ${hasConsent ? 
+              '**This PR has been approved by TBR3661 and may proceed.**' : 
+              `**This PR requires explicit consent from @TBR3661.**
+              
+              To grant consent:
+              1. Add the label \`affects:user:TBR3661\` to this PR
+              2. Either:
+                 - Submit an APPROVE review, OR
+                 - Comment with the word "consent"
+              
+              See [docs/OPENAI_ONLY.md](../blob/main/docs/OPENAI_ONLY.md) for more information.`
+            }
+            
+            ---
+            *This check enforces the OpenAI-only policy. All provider changes require explicit user consent.*`;
+            
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const existingComment = comments.data.find(
+              comment => comment.user.login === 'github-actions[bot]' && 
+                         comment.body.includes('Provider Guard')
+            );
+            
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body,
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
+      
+      - name: Fail if consent not granted
+        if: steps.check.outputs.provider_change == 'true' && steps.consent.outputs.has_consent != 'true'
+        run: |
+          echo "❌ Provider changes detected without explicit consent from TBR3661"
+          echo ""
+          echo "This PR attempts to modify provider configuration without proper authorization."
+          echo "Please see the Provider Guard comment for details on how to obtain consent."
+          echo ""
+          echo "Violations:"
+          echo -e "${{ steps.check.outputs.violations }}"
+          exit 1
+      
+      - name: Success
+        if: steps.check.outputs.provider_change != 'true' || steps.consent.outputs.has_consent == 'true'
+        run: |
+          if [ "${{ steps.check.outputs.provider_change }}" = "true" ]; then
+            echo "✅ Provider changes approved with explicit consent"
+          else
+            echo "✅ No provider changes detected"
+          fi
