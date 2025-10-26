@@ -121,7 +121,7 @@ curl -X POST "${WORKER_URL}/entitlements/grant" \
     "user_id": "user123",
     "type": "subscription",
     "tier": "monthly",
-    "expires_at": "2025-11-26T20:00:00Z"
+    "expires_at": "2024-11-26T20:00:00Z"
   }'
 ```
 
@@ -138,7 +138,7 @@ Expected response:
         "tier": "monthly",
         "status": "active",
         "granted_at": "2024-10-26T20:00:00Z",
-        "expires_at": "2025-11-26T20:00:00Z"
+        "expires_at": "2024-11-26T20:00:00Z"
       }
     ],
     "purchases": []
@@ -193,7 +193,7 @@ Expected response:
   "subscription": {
     "tier": "monthly",
     "status": "active",
-    "expires_at": "2025-11-26T20:00:00Z"
+    "expires_at": "2024-11-26T20:00:00Z"
   },
   "purchases": [],
   "message": "User has active access"

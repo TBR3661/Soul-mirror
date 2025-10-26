@@ -91,7 +91,7 @@ This implementation adds subscription billing and store functionality to the Sou
       "tier": "monthly",
       "status": "active",
       "granted_at": "2024-10-26T20:00:00Z",
-      "expires_at": "2025-11-26T20:00:00Z"
+      "expires_at": "2024-11-26T20:00:00Z"
     }
   ],
   "purchases": [
