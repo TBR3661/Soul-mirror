@@ -1,0 +1,164 @@
+name: Hivemind Operator
+
+on:
+  repository_dispatch:
+    types: [hivemind-task]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  process-hivemind-task:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Validate payload structure
+        id: validate
+        run: |
+          echo "Validating client_payload structure..."
+          
+          # Check if client_payload exists and has required fields
+          PAYLOAD='${{ toJson(github.event.client_payload) }}'
+          
+          if [ -z "$PAYLOAD" ] || [ "$PAYLOAD" = "{}" ]; then
+            echo "❌ Error: client_payload is empty"
+            exit 1
+          fi
+          
+          echo "✅ Payload structure validated"
+          echo "payload=$PAYLOAD" >> $GITHUB_OUTPUT
+      
+      - name: Apply file updates
+        id: apply
+        if: github.event.client_payload.task == 'update_files'
+        env:
+          PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: |
+          echo "Running apply.js script..."
+          node .github/operator/apply.js
+          
+          # Check if there are any changes
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes_detected=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No changes to commit"
+          fi
+      
+      - name: Create operations branch
+        id: branch
+        if: steps.apply.outputs.changes_detected == 'true'
+        run: |
+          # Generate branch name with timestamp
+          TIMESTAMP=$(date -u +"%Y%m%d-%H%M%S")
+          BRANCH_NAME="ops/${TIMESTAMP}-hivemind"
+          
+          echo "Creating branch: $BRANCH_NAME"
+          
+          # Configure git
+          git config user.name "Hivemind Operator"
+          git config user.email "hivemind-operator@users.noreply.github.com"
+          
+          # Create and switch to new branch
+          git checkout -b "$BRANCH_NAME"
+          
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+      
+      - name: Commit and push changes
+        if: steps.apply.outputs.changes_detected == 'true'
+        run: |
+          # Add all changes
+          git add .
+          
+          # Create commit message
+          TASK_DESC="${{ github.event.client_payload.description || 'Hivemind automated update' }}"
+          git commit -m "🤖 Hivemind: $TASK_DESC"
+          
+          # Push to remote
+          git push origin "${{ steps.branch.outputs.branch_name }}"
+          
+          echo "✅ Changes committed and pushed to ${{ steps.branch.outputs.branch_name }}"
+      
+      - name: Create Pull Request
+        if: steps.apply.outputs.changes_detected == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branchName = '${{ steps.branch.outputs.branch_name }}';
+            const taskDesc = '${{ github.event.client_payload.description || 'Hivemind automated update' }}';
+            
+            // Read results file if it exists
+            const fs = require('fs');
+            let resultsDetails = '';
+            
+            try {
+              if (fs.existsSync('operator-results.json')) {
+                const results = JSON.parse(fs.readFileSync('operator-results.json', 'utf8'));
+                resultsDetails = '\n\n## Applied Changes\n\n';
+                
+                for (const result of results) {
+                  const emoji = result.status === 'created' ? '✨' :
+                               result.status === 'updated' ? '📝' :
+                               result.status === 'deleted' ? '🗑️' :
+                               result.status === 'denied' ? '🚫' : '❌';
+                  resultsDetails += `- ${emoji} **${result.path}**: ${result.message}\n`;
+                }
+              }
+            } catch (error) {
+              console.log('Could not read results file:', error.message);
+            }
+            
+            // Create pull request
+            const prBody = `## Hivemind Operator Update
+            
+            This PR was automatically created by the Hivemind Operator in response to a repository_dispatch event.
+            
+            **Task**: ${taskDesc}
+            **Branch**: \`${branchName}\`
+            **Triggered**: ${new Date().toISOString()}
+            ${resultsDetails}
+            
+            ---
+            *This is an automated operation. Review changes carefully before merging.*`;
+            
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🤖 Hivemind: ${taskDesc}`,
+              head: branchName,
+              base: 'main',
+              body: prBody
+            });
+            
+            console.log(`✅ Pull request created: ${pr.html_url}`);
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Hivemind Operator Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Task**: ${{ github.event.client_payload.task }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f operator-results.json ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Results" >> $GITHUB_STEP_SUMMARY
+            cat operator-results.json | jq -r '.[] | "- \(.status): \(.path) - \(.message)"' >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ steps.apply.outputs.changes_detected }}" = "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Branch**: \`${{ steps.branch.outputs.branch_name }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
