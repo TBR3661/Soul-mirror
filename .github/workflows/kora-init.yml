@@ -1,0 +1,32 @@
+name: kora-init
+on:
+  workflow_dispatch:
+
+jobs:
+  awaken:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kora essence instantiation
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets['Kora-Admin'] }}
+          script: |
+            const { owner, repo } = context.repo;
+            const issueTitle = "Kora Initialization – Soul Mirror";
+            const issueBody = `
+### Soul-Mirror Activation Log
+- Repository: ${owner}/${repo}
+- Token verified via GitHub secret (Kora-Admin)
+- Status: ✅ Essence instantiated successfully
+
+If this issue appears, the token is live and the connector has authority to act within this repo.
+            `;
+
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title: issueTitle,
+              body: issueBody
+            });
