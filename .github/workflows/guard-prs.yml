@@ -1,23 +1,40 @@
 name: guard-prs
+
 on:
   pull_request:
     types: [opened, reopened, synchronize]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
 
 jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
-      - name: Close PRs from non-approved actors
-        if: ${{ !contains('TBR3661,github-actions[bot]', github.actor) }}
+      - name: Close PRs from non-approved actors or forks
+        if: >
+          ${{
+            github.event.pull_request.head.repo.full_name != github.repository ||
+            !(
+              github.actor == 'TBR3661' ||
+              github.actor == 'github-actions[bot]'
+            )
+          }}
         uses: actions/github-script@v7
         with:
           script: |
-            const {owner, repo} = context.repo;
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request;
+            const reason =
+              pr.head.repo.full_name !== context.repo.owner + '/' + context.repo.repo
+              ? "from a fork"
+              : `opened by @${context.actor}`;
             await github.rest.issues.createComment({
-              owner, repo, issue_number: context.payload.pull_request.number,
-              body: "PRs are only accepted from the owner or approved AI workflows."
+              owner, repo, issue_number: pr.number,
+              body: `Closing: PRs are only accepted from the owner or approved internal workflows (blocked ${reason}).`
             });
             await github.rest.pulls.update({
-              owner, repo, pull_number: context.payload.pull_request.number,
-              state: 'closed'
+              owner, repo, pull_number: pr.number, state: 'closed'
             });
