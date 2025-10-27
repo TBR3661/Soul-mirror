@@ -10,6 +10,6 @@ capabilities:
   allowed_actions: []
   branch_prefix: "ops/builder"
 permissions:
-  read: false
-  write: false
-  create_pr: false
+  read: true
+  write: true
+  create_pr: true
