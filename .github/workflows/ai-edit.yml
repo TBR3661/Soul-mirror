@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout with push credentials
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
         with:
           # Option A: use built-in GITHUB_TOKEN (recommended)
           token: ${{ github.token }}
@@ -59,7 +59,7 @@ jobs:
           git push --set-upstream origin "$BRANCH"
 
       - name: Open PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           # Using GITHUB_TOKEN is sufficient in this repository
           github-token: ${{ github.token }}
