@@ -1,0 +1,59 @@
+name: ai-edit
+on:
+  workflow_dispatch:
+    inputs:
+      file_path:
+        description: 'Path to file to write (e.g., solmir/agent.md)'
+        required: true
+      content:
+        description: 'File contents (UTF-8, plain text)'
+        required: true
+      commit_message:
+        description: 'Commit message'
+        required: true
+      pr_title:
+        description: 'Pull Request title'
+        required: true
+
+jobs:
+  edit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create working branch
+        run: |
+          BR="ai/edit-$(date +%s)"
+          echo "BRANCH=$BR" >> $GITHUB_ENV
+          git switch -c "$BR"
+
+      - name: Write file
+        run: |
+          mkdir -p "$(dirname "${{ inputs.file_path }}")"
+          printf "%s" "${{ inputs.content }}" > "${{ inputs.file_path }}"
+          git add "${{ inputs.file_path }}"
+          git -c user.name="kora-bot" -c user.email="actions@github.com" \
+            commit -m "${{ inputs.commit_message }}"
+
+      - name: Push branch
+        env:
+          GH_TOKEN: ${{ secrets.Kora-Admin }}
+        run: |
+          git push --set-upstream origin "$BRANCH"
+
+      - name: Open PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.Kora-Admin }}
+          script: |
+            const {owner, repo} = context.repo;
+            const title = core.getInput('pr_title');
+            const head  = process.env.BRANCH;
+            const base  = 'main';
+            const pr = await github.rest.pulls.create({ owner, repo, title, head, base, body:
+              "AI edit proposal. Only the owner (@TBR3661) can approve and merge."
+            });
+            core.setOutput('pr', pr.data.html_url);
