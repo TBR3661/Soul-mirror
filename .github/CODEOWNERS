@@ -1,1 +1,7 @@
-@TBR3661
+# Global ownership — requires branch protection “Require review from Code Owners”
+* @TBR3661
+
+# Sensitive and policy paths (explicitly listed for clarity)
+.github/** @TBR3661
+.hivemind/** @TBR3661
+docs/** @TBR3661
