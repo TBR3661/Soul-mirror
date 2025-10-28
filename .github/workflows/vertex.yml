@@ -27,6 +27,12 @@ jobs:
 
     - name: Set up gcloud SDK
       uses: google-github-actions/setup-gcloud@v2
+            - name: Run a Vertex AI test call
+        run: |
+          echo "Testing Vertex AI call..."
+          gcloud ai endpoints list --region=us-east4 || true
+          gcloud ai models list --region=us-east4 || true
+
 
     - name: Verify authentication
       run: gcloud auth list
