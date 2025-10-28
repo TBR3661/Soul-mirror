@@ -2,6 +2,11 @@
 
 A minimal Express service that proxies requests to Google Vertex AI using Application Default Credentials (ADC) from your Google Cloud project/workspace. No secrets are stored in the browser.
 
+## Security Notes
+- **CORS**: Currently configured with `origin: true` to allow all origins for ease of development. For production, restrict CORS to specific domains or implement proper authentication (IAP, JWT).
+- **Authentication**: This initial implementation relies on CORS for access control. Consider adding Cloud Run IAP, JWT validation, or API keys for production deployments.
+- **Error Messages**: Error messages from Vertex AI are passed through to clients. Consider sanitizing these in production to avoid leaking sensitive information.
+
 ## Deploy (Cloud Run)
 1. Ensure you have `gcloud` authenticated with a Workspace account that has access to the GCP project.
 2. Set env vars at deploy (replace values):
@@ -24,4 +29,4 @@ gcloud run deploy vertex-bridge \
 
 ## Notes
 - Keep requests modest (flash for day-to-day). Use Pro selectively for heavy synthesis.
-- Add Auth (IAP/JWT) later if you want to restrict callers beyond CORS.
+- For production hardening, implement IAP or JWT-based authentication to restrict access.
