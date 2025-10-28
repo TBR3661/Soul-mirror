@@ -35,3 +35,7 @@ jobs:
       run: |
         echo "Connected to Google Cloud!"
         gcloud ai endpoints list --region=us-east4
+
+        on:
+      workflow_dispatch:
+
