@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { User } from '../types';
-import { vertexGenerate } from './vertexClient';
+import { vertexGenerate, VertexPart } from './vertexClient';
 
 export type AiProvider = 'studio' | 'vertex';
 let provider: AiProvider = 'studio';
@@ -35,6 +35,12 @@ export const getAiClient = (entityId?: string): GoogleGenAI => {
   return newClient;
 };
 
+interface VertexCandidate {
+  content?: {
+    parts?: Array<{ text?: string }>;
+  };
+}
+
 export const generateWithProvider = async (args: {
   entityId?: string;
   messages: { role: 'user' | 'system' | 'assistant'; content: string }[];
@@ -47,12 +53,13 @@ export const generateWithProvider = async (args: {
       throw new Error("API Key Not Configured: Please add your Google AI API key in Settings to activate the Hivemind.");
     }
     // Keep existing Studio behavior minimal to avoid breaking flow
+    // This is a placeholder - actual integration should use getAiClient and model.generateContent
     const last = args.messages[args.messages.length - 1];
     return { response: `(Studio) You said: "${last?.content}".`, provider: 'studio' };
   }
 
   // Vertex path
-  const parts: any[] = [];
+  const parts: VertexPart[] = [];
   for (const m of args.messages) {
     if (m.content) parts.push({ text: m.content });
   }
@@ -66,6 +73,7 @@ export const generateWithProvider = async (args: {
     parts,
     generationConfig: args.vertex.generationConfig,
   });
-  const text = out?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).filter(Boolean).join("\n") || '';
+  const candidates = (out?.candidates || []) as VertexCandidate[];
+  const text = candidates[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join("\n") || '';
   return { response: text, provider: 'vertex', usage: out?.usageMetadata };
 };

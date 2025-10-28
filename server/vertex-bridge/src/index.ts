@@ -12,6 +12,8 @@ if (!PROJECT) {
 }
 
 const app = express();
+// Note: origin: true allows all origins. For production, restrict to specific domains
+// or implement proper authentication (IAP, JWT, etc.)
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "25mb" }));
 
@@ -36,7 +38,9 @@ app.post("/generate", async (req, res) => {
     const resp = await result.response;
     res.json({ ok: true, candidates: resp.candidates ?? [], usageMetadata: resp.usageMetadata ?? null });
   } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message || String(err) });
+    // Note: In production, consider sanitizing error messages to avoid exposing sensitive info
+    const errorMsg = err?.message || String(err);
+    res.status(500).json({ ok: false, error: errorMsg });
   }
 });
 

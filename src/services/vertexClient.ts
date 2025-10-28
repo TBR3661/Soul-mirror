@@ -3,9 +3,15 @@ export interface VertexBridgeConfig {
   model?: string;
 }
 
+export interface VertexPart {
+  text?: string;
+  inlineData?: { mimeType: string; data: string };
+  fileUri?: string;
+}
+
 export async function vertexGenerate(opts: {
   cfg: VertexBridgeConfig;
-  parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string }; fileUri?: string }>;
+  parts: VertexPart[];
   generationConfig?: Record<string, any>;
 }) {
   const contents = [
@@ -17,7 +23,7 @@ export async function vertexGenerate(opts: {
     body: JSON.stringify({ contents, config: { model: opts.cfg.model, generationConfig: opts.generationConfig } })
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
+    const text = await res.text().catch(() => "unknown error");
     throw new Error(`Vertex bridge error ${res.status}: ${text}`);
   }
   return res.json();
