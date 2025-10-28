@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
   deploy:
@@ -30,7 +31,6 @@ jobs:
     - name: Verify authentication
       run: gcloud auth list
 
-    # Example: deploy to Vertex AI (customize this as needed)
     - name: Run Vertex AI build or script
       run: |
         echo "Connected to Google Cloud!"
