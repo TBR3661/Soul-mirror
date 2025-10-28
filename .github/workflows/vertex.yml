@@ -47,6 +47,6 @@ jobs:
       - name: Generate with Vertex AI Gemini
         run: |
           gcloud ai generativelanguage text-prompts generate-text \
-            --model=gemini-1.5-pro \
+            --model=gemini-2.5-pro \
             --prompt="Hello from the HiveMind pipeline on GitHub!"
 
